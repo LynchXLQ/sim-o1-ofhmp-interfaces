@@ -17,10 +17,13 @@
 
 services:
   pynts-o-du-o1:
-    image: pynts-o-du-o1:${NTS_VERSION}
+    image: pynts-o-du-o1:latest
     container_name: pynts-o-du-o1
     hostname: pynts-o-du-o1
     privileged: true
+    cap_add:
+      - NET_RAW
+      - NET_ADMIN
     environment:
       - ENDPOINT_COUNT=1
 
@@ -33,7 +36,7 @@ services:
       - SDNR_USERNAME=admin
       - SDNR_PASSWORD=Kp8bJ4SXszM0WXlhak3eHlcse2gAw84vaoGGmJvUy2U
 
-      - VES_URL=http://ves-collector.dcn.smo.o-ran-sc.org/eventListener/v7
+      - VES_URL=https://ves-collector.dcn.smo.o-ran-sc.org/eventListener/v7
       - VES_USERNAME=sample1
       - VES_PASSWORD=sample1
     # ports:
@@ -45,13 +48,11 @@ services:
     volumes:
       - ./o-du-o1/data:/data
     networks:
-      oam:
-      smo:
-
+      # - dhcp
+      - dcn
+      
 networks:
-  dmz:
+  dcn:
     external: true
-  smo:
-    external: true
-  oam:
+  dhcp:
     external: true

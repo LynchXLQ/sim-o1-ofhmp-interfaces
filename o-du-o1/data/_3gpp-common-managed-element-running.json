@@ -21,6 +21,7 @@
                 "attributes": {
                   "priorityLabel": 1,
                   "cellLocalId": 1,
+                  "administrativeState": "LOCKED",
                   "pLMNInfoList": [
                     {
                       "mcc": "310",

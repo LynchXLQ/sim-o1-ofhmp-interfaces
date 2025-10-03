@@ -10,7 +10,7 @@
                 "name": "tls-auth-endpt",
                 "tls": {
                   "tcp-client-parameters": {
-                    "remote-address": "172.60.0.71",
+                    "remote-address": "controller.dcn.smo.o-ran-sc.org",
                     "remote-port": 4335
                   },
                   "tls-server-parameters": {
@@ -18,7 +18,7 @@
                       "certificate": {
                         "central-keystore-reference": {
                           "asymmetric-key": "serverkey-tls",
-                          "certificate": "servercert"
+                          "certificate": "servercert-smo"
                         }
                       }
                     },
@@ -33,9 +33,8 @@
                       "cert-to-name": [
                         {
                           "id": 1,
-                          "fingerprint": "02:e9:38:1f:f6:8b:62:de:0a:0b:c5:03:81:a8:03:49:a0:00:7f:8b:f3",
-                          "map-type": "ietf-x509-cert-to-name:specified",
-                          "name": "netconf"
+                          "fingerprint": "02:DC:CB:E3:29:E2:65:04:A8:DF:B3:63:E7:E4:1A:06:81:64:C6:DA:37",
+                          "map-type": "ietf-x509-cert-to-name:san-rfc822-name"
                         }
                       ]
                     }

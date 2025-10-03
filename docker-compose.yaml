@@ -21,6 +21,9 @@ services:
     container_name: pynts-dev-du
     hostname: pynts-dev-du
     privileged: true
+    cap_add:
+      - NET_RAW
+      - NET_ADMIN
     environment:
       - ENDPOINT_COUNT=1
 
@@ -45,14 +48,18 @@ services:
       # - ./ietf-microwave/data:/data
 
     networks:
-      oam:
-      smo:
+      smo:      
+      # dhcp:
+      dcn:
 
   pynts-dev-ru:
     image: pynts-o-ru-mplane:${NTS_VERSION}
     container_name: pynts-dev-ru
     hostname: pynts-dev-ru
     privileged: true
+    cap_add:
+      - NET_RAW
+      - NET_ADMIN
     environment:
       - ENDPOINT_COUNT=1
 
@@ -66,6 +73,8 @@ services:
       - VES_URL=https://ves-collector.dcn.smo.o-ran-sc.org/eventListener/v7
       - VES_USERNAME=sample1
       - VES_PASSWORD=sample1
+
+      - SDNR_CERTIFICATE_MARKERS=False
     # ports:
     #   - "830:830"
     #   - "6513:6513"
@@ -73,15 +82,18 @@ services:
       - ./base/src:/app
       - ./o-ru-mplane/data:/data
       - ./o-ru-mplane/data/ietf-netconf-server-running-hybrid.json:/data/ietf-netconf-server-running.json
+      - ./o-ru-mplane/src:/app/extensions/o-ru-mplane
 
     networks:
-      oam:
+      # dhcp:
+      dcn:
       smo:
 
 networks:
-  dmz:
+  # dhcp:
+  #   external: true
+  dcn:
     external: true
   smo:
     external: true
-  oam:
-    external: true
+    

@@ -34,12 +34,12 @@ class IetfKeystoreTruststoreFeature:
         ietf_keystore_template = DictFactory.get_template("ietf-keystore")
         ietf_keystore_template.update_key(["ietf-keystore:keystore", "asymmetric-keys", "asymmetric-key", 0, "public-key"], self.crypto.get_public_key_ssh_format())
         ietf_keystore_template.update_key(["ietf-keystore:keystore", "asymmetric-keys", "asymmetric-key", 0, "cleartext-private-key"], self.crypto.get_private_key_base64_encoding_no_markers())
-        ietf_keystore_template.update_key(["ietf-keystore:keystore", "asymmetric-keys", "asymmetric-key", 0, "certificates", "certificate", 0, "cert-data"], self.crypto.get_certificate_base64_encoding_no_markers(is_smo=False))                
+        ietf_keystore_template.update_key(["ietf-keystore:keystore", "asymmetric-keys", "asymmetric-key", 0, "certificates", "certificate", 0, "cert-data"], self.crypto.get_certificate_base64_encoding(is_smo=False, with_markers=False))                
 
         ietf_keystore_template.update_key(["ietf-keystore:keystore", "asymmetric-keys", "asymmetric-key", 1, "public-key"], self.crypto.get_public_key_base64_encoding_no_markers())
         ietf_keystore_template.update_key(["ietf-keystore:keystore", "asymmetric-keys", "asymmetric-key", 1, "cleartext-private-key"], self.crypto.get_private_key_base64_encoding_no_markers())
-        ietf_keystore_template.update_key(["ietf-keystore:keystore", "asymmetric-keys", "asymmetric-key", 1, "certificates", "certificate", 0, "cert-data"], self.crypto.get_certificate_base64_encoding_no_markers(is_smo=False))            
-        ietf_keystore_template.update_key(["ietf-keystore:keystore", "asymmetric-keys", "asymmetric-key", 1, "certificates", "certificate", 1, "cert-data"], self.crypto.get_certificate_base64_encoding_no_markers(is_smo=True))
+        ietf_keystore_template.update_key(["ietf-keystore:keystore", "asymmetric-keys", "asymmetric-key", 1, "certificates", "certificate", 0, "cert-data"], self.crypto.get_certificate_base64_encoding(is_smo=False, with_markers=False))            
+        ietf_keystore_template.update_key(["ietf-keystore:keystore", "asymmetric-keys", "asymmetric-key", 1, "certificates", "certificate", 1, "cert-data"], self.crypto.get_certificate_base64_encoding(is_smo=True, with_markers=False))
 
         self.netconf.set_data(Datastore.RUNNING, "ietf-keystore", ietf_keystore_template.data, "merge")
         self.netconf.set_data(Datastore.OPERATIONAL, "ietf-keystore", ietf_keystore_template.data)

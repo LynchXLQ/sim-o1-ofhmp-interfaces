@@ -31,5 +31,9 @@ WORKDIR /app
 ENV NETWORK_FUNCTION_TYPE="o-ru-ofmp"
 ENV HYBDIR_MPLANE=false
 
+COPY ./o-ru-mplane/entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+ENTRYPOINT ["/entrypoint.sh"]
+
 EXPOSE 830
 CMD ["/usr/bin/supervisord", "-c", "/etc/supervisor/conf.d/supervisord.conf"]

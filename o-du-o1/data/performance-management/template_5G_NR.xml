@@ -7,12 +7,22 @@
 	</fileHeader>
 	<measData>
     <measEntity localDn="ManagedElement=@hostname@" />
-    <measInfo measInfoId="5.1.1.1.1">
+    <measInfo measInfoId="5.1.1.4.1">
       <job jobId="0" />
 			<granPeriod duration="@log-period@" endTime="@end-time@"/>
 			<repPeriod duration="@rep-period@"/>
       @point-start@<measType p="@point-id@">@point-name@</measType>@point-end@
-			<measValue measObjLdn="ManagedElement=@hostname@,GNBDUFunction=1,NRCellDU=1">
+			<measValue measObjLdn="ManagedElement=@hostname@,GNBCUCPFunction=1,NRCellCU=1">
+				@value-start@<r p="@point-id@">@value@</r>@value-end@
+				@suspect@
+			</measValue>
+    </measInfo>
+    <measInfo measInfoId="5.1.1.4.2">
+      <job jobId="0" />
+			<granPeriod duration="@log-period@" endTime="@end-time@"/>
+			<repPeriod duration="@rep-period@"/>
+      @point-start@<measType p="@point-id@">@point-name@</measType>@point-end@
+			<measValue measObjLdn="ManagedElement=@hostname@,GNBCUCPFunction=1,NRCellCU=1">
 				@value-start@<r p="@point-id@">@value@</r>@value-end@
 				@suspect@
 			</measValue>

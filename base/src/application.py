@@ -44,7 +44,6 @@ class Application():
         # setup logging
         set_pynts_log_level(args.verbose.upper())
 
-        logger.info("bbbbbbb")
         # get available extensions
         self.loaded_extensions = [Core()]
 

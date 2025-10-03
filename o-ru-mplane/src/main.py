@@ -25,6 +25,7 @@ from core.netconf import Netconf, Datastore
 from util.crypto import CryptoUtils
 from util.threading import sa_sleep
 from util.logging import get_pynts_logger
+from sysrepo.errors import SysrepoNotFoundError
 
 logger = get_pynts_logger("o-ru-mplane")
 
@@ -55,7 +56,8 @@ class Main(Extension):
 
     def startup(self) -> None:
         self.update_o_ran_certificates()
-        self.start_odl_allow_thread()
+        is_tls = self.replace_callhome_settings()
+        self.start_odl_allow_thread(is_tls)
         logger.info("o-ru-mplane extension loaded")
 
     def update_o_ran_certificates(self) -> None:
@@ -66,15 +68,18 @@ class Main(Extension):
         self.netconf.set_data(Datastore.OPERATIONAL, "", o_ran_certificates_template.data)
         
 
-    def start_odl_allow_thread(self):
-      request_thread = threading.Thread(target=self.send_odl_callhome_allow_tls)
+    def start_odl_allow_thread(self, is_tls: bool):
+      if is_tls is True:
+        request_thread = threading.Thread(target=self.send_odl_callhome_allow_tls)
+      elif is_tls is False:
+        request_thread = threading.Thread(target=self.send_odl_callhome_allow_ssh)
       request_thread.daemon = True  # Set as daemon so it exits when the main program exits
       request_thread.start()
     
     def send_odl_callhome_allow_tls(self) -> None:
         odl_trusted_cert_template = DictFactory.get_template("odl-netconf-callhome-trusted-cert")
         odl_trusted_cert_template.update_key(["input", "trusted-certificate", 0, "name"], self.config.hostname)
-        odl_trusted_cert_template.update_key(["input", "trusted-certificate", 0, "certificate"], self.crypto_util.get_certificate_base64_encoding_no_markers(is_smo=True))
+        odl_trusted_cert_template.update_key(["input", "trusted-certificate", 0, "certificate"], self.crypto_util.get_certificate_base64_encoding(is_smo=True, with_markers=self.config.sdnr_certificate_markers))
         
         odl_trusted_cert_template_remove = DictFactory.get_template("odl-netconf-callhome-trusted-cert-remove")
         odl_trusted_cert_template_remove.update_key(["input","name", 0], self.config.hostname)
@@ -131,6 +136,77 @@ class Main(Extension):
           if not (success1 and success2):
               sa_sleep(10)
 
+    def send_odl_callhome_allow_ssh(self) -> None:
+        allow_ssh_template = DictFactory.get_template("odl-netconf-callhome-server-ssh")
+
+        allow_ssh_template.update_key(["odl-netconf-callhome-server:device", "unique-id"], self.config.hostname)
+        allow_ssh_template.update_key(["odl-netconf-callhome-server:device", "ssh-client-params", "credentials", "username"], self.config.netconf_username)
+        allow_ssh_template.update_key(["odl-netconf-callhome-server:device", "ssh-client-params", "credentials", "passwords"], self.config.netconf_password, append_to_list=True)
+        allow_ssh_template.update_key(["odl-netconf-callhome-server:device", "ssh-client-params", "host-key"], self.crypto_util.get_public_key_ssh_format())
+
+        url = self.config.sdnr_restconf_url + ODL_CALLHOME_ALLOW_DEVICES_URL + self.config.hostname
+        
+        success1 = False  # Flag to track the success of the request
+        while not success1:
+          logger.debug(f"sending HTTP PUT to {url} with payload {allow_ssh_template.data}")
+          response = requests.put(url, auth=(self.config.sdnr_username, self.config.sdnr_password), json=allow_ssh_template.data, headers=HTTP_YANG_JSON_HEADERS, verify=False)
+          if response.status_code >= 200 and response.status_code < 300:
+            logger.debug(f"HTTP response to {url} succeded with code {response.status_code}")
+            success1 = True
+          else:
+            logger.error(f"HTTP PUT request failed to {url} with payload {allow_ssh_template.data} with status_code={response.status_code}")
+            
+          # Wait 10 seconds before retrying
+          if not (success1):
+              sa_sleep(10)
+
+    def replace_callhome_settings(self) -> bool:
+      is_tls = False
+      try:
+        client_parameters = self.netconf.running.get_data("/ietf-netconf-server:netconf-server/call-home/netconf-client/endpoints/endpoint/tls/tcp-client-parameters")
+        is_tls = True
+      except SysrepoNotFoundError as e:
+        try:
+          client_parameters = self.netconf.running.get_data("/ietf-netconf-server:netconf-server/call-home/netconf-client/endpoints/endpoint/ssh/tcp-client-parameters")
+          is_tls = False
+        except SysrepoNotFoundError as e:
+            try:
+                client_parameters = self.netconf.running.get_data(
+                    "/ietf-netconf-server:netconf-server/listen/endpoints/endpoint/tls/tcp-client-parameters")
+                is_tls = True
+            except SysrepoNotFoundError as e:
+                return is_tls
+            return is_tls
+      
+      if self.config.dhcp_sdnr_fqdn is not None:        
+        update_remote_address(client_parameters, "smo", self.config.dhcp_sdnr_fqdn)
+      elif self.config.dhcp_sdnr_controller_ip is not None:
+        update_remote_address(client_parameters, "smo", self.config.dhcp_sdnr_controller_ip)      
+      else:
+        # we don't change anything if we got nothing via DHCP
+        return is_tls
+      
+      self.netconf.running.edit_batch(client_parameters, "ietf-netconf-server", default_operation="merge")
+      self.netconf.running.apply_changes()
+      
+      return is_tls
+
+     
+def update_remote_address(config, target_endpoint_name, new_address):
+  """Recursively update the 'remote-address' for a given endpoint name (just a substring comparison)."""
+  if isinstance(config, dict):
+      for key, value in config.items():
+          if key == "endpoint" and isinstance(value, list):
+              for endpoint in value:
+                  if target_endpoint_name in endpoint.get("name"):
+                      # Update the remote-address if the structure matches
+                      if "tls" in endpoint and "tcp-client-parameters" in endpoint["tls"]:
+                          endpoint["tls"]["tcp-client-parameters"]["remote-address"] = new_address
+          else:
+              update_remote_address(value, target_endpoint_name, new_address)
+  elif isinstance(config, list):
+      for item in config:
+          update_remote_address(item, target_endpoint_name, new_address)
 
 class OranCertificatesTemplate(BaseTemplate):
     """A dictionary template for netconf-server-parameters objects."""

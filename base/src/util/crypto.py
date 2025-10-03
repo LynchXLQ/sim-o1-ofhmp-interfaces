@@ -270,11 +270,11 @@ class CryptoUtils():
         crypto_string = self.public_key_pem.decode("utf-8")
         return "\n".join(crypto_string.split("\n")[1:-2])
 
-    def get_certificate_base64_encoding_no_markers(self, is_smo = False) -> str:
-        ''' Method for getting just the base64 encoding of the private key, removing the ---- BEGIN... and ---- END lines.
+    def get_certificate_base64_encoding(self, is_smo = False, with_markers = False) -> str:
+        ''' Method for getting just the base64 encoding of the private key, removing or keeping the ---- BEGIN... and ---- END lines.
         '''
         crypto_string = self.smo_certificate.decode("utf-8") if is_smo else self.odu_certificate.decode("utf-8")
-        return "\n".join(crypto_string.split("\n")[1:-2])
+        return "\n".join(crypto_string.split("\n")[1:-2]) if with_markers is False else crypto_string
 
     # def get_ca_certificate_base64_encoding_no_markers(self) -> str:
     #     ''' Method for getting just the base64 encoding of the private key, removing the ---- BEGIN... and ---- END lines.

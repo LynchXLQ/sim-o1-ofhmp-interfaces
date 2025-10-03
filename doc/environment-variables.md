@@ -44,4 +44,10 @@ Below all the available environment variables will be described
 
 ## O_DU_CALLHOME_PORT
 - type string
-- the port number where a simulated O-DU listens for call-home connections. Is only relevant when docker image is ran in network_mode="host". Default port is 4335
+- the port number where a simulated O-DU listens for call-home connections. Is only relevant when docker image is ran in network_mode="host"
+- default value is **4335**
+
+## SDNR_CERTIFICATE_MARKERS
+- type bool
+- if **True**, the *add-trusted-certificate* operation from the simulated O-RU going towards the SDN Controller will contain the *"--- BEGIN ---"* and *"--- END ---"* markers of a certificate, when sending it to ODL. If **False**, the markers will not be part of the certificate. The markers are needed starting with ODL Scandium version. Only relevant for NETCONF Call Home (implemented in O-RU currently).
+- default value is **False**

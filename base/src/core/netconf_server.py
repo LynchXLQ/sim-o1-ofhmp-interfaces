@@ -173,7 +173,7 @@ class NetconfServer:
         odl_trusted_cert_template = DictFactory.get_template("odl-netconf-callhome-trusted-cert")
 
         odl_trusted_cert_template.update_key(["input", "trusted-certificate", 0, "name"], self.config.hostname)
-        odl_trusted_cert_template.update_key(["input", "trusted-certificate", 0, "certificate"], self.crypto.get_certificate_base64_encoding_no_markers())
+        odl_trusted_cert_template.update_key(["input", "trusted-certificate", 0, "certificate"], self.crypto.get_certificate_base64_encoding(with_markers=False))
 
         url = self.config.sdnr_restconf_url + ODL_ADD_TRUSTED_KEY_URL
         logger.debug(f"sending HTTP POST to {url} with payload {odl_trusted_cert_template.data}")

@@ -35,6 +35,8 @@ RUN apt-get update && DEBIAN_FRONTEND="noninteractive" apt-get install -y \
   # ftpd related
   openssl openssh-client openssh-server \
   vsftpd \
+  # DHCP related
+  libpcap-dev tcpdump iproute2 \
   && \
   apt-get clean && \
   rm -rf /var/cache/apt/archives/* /var/lib/apt/lists/*

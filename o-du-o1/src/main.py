@@ -115,6 +115,9 @@ class Main(Extension):
           session = connect_tls(sock=conn, keyfile=KEY_FILE,
                                                   certfile=CERT_FILE,
                                                   ca_certs=CA_CERT_FILE)
+          # Retrieve and log TLS details
+          logger.info(f"TLS handshake completed (Session ID: {session_id}) with TLS version {session.sock.version()}")
+
           mgr = Manager(session, timeout=3)
 
           hostname_xml_data_str = mgr.get_config(source="running", filter="<filter><sys:system xmlns:sys=\"urn:ietf:params:xml:ns:yang:ietf-system\"><sys:hostname/></sys:system></filter>").data_xml
@@ -172,8 +175,8 @@ class Main(Extension):
       server_socket.listen(max_connections)
       logger.info(f"Listening for CallHome TLS connections on {host}:{port}")
 
-      # Create an SSL context for mutual TLS authentication
-      context = ssl.SSLContext(ssl.PROTOCOL_TLSv1_2)
+      context = ssl.SSLContext(ssl.PROTOCOL_TLS)  # Automatically enables the best available TLS protocols
+
       context.load_cert_chain(certfile=CERT_FILE, keyfile=KEY_FILE)
       context.load_verify_locations(cafile=CA_CERT_FILE)
       context.verify_mode = ssl.CERT_REQUIRED
@@ -182,10 +185,14 @@ class Main(Extension):
       with ThreadPoolExecutor(max_workers=max_connections) as executor:
           while not stop_event.is_set():
               conn, addr = server_socket.accept()
-              # tls_conn = context.wrap_socket(conn)
-              logger.info(f"Accepted TLS connection from {addr}")
-              executor.submit(self.handle_callhome_session, conn, addr, session_id)
-              session_id += 1
+              try:
+                  # tls_conn = context.wrap_socket(conn, server_side=True)
+                  logger.info(f"Accepted TLS connection from {addr}")
+                  executor.submit(self.handle_callhome_session, conn, addr, session_id)
+                  session_id += 1
+              except ssl.SSLError as e:
+                  logger.error(f"SSL error occurred while accepting connection from {addr}: {e}")
+                  conn.close()
 
     def handle_notification(self, notification_xml, session_id) -> None:
       logger.debug(f"Handling NETCONF notification: {notification_xml}")

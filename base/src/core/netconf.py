@@ -127,20 +127,28 @@ class Netconf:
                         sess.apply_changes()
             elif datastore == Datastore.RUNNING:
                 with self.connection.start_session("running") as sess:
-                    try:
-                      data = sess.get_data(f"/{module_name}:*")
-                    except sysrepo.SysrepoNotFoundError:
-                      logger.debug(f"Did not find data for /{module_name}:*")
-                      data = None
-                    if not data:
-                      with self.connection.get_ly_ctx() as ctx:
-                          data = ctx.parse_data_file(file, format, parse_only=True)
-                          # start with a fresh datastore, erase anything that was before
-                          # sess.copy_config("startup", module_name)
-                          sess.edit_batch_ly(data)
-                          sess.apply_changes()      
-                    else:
-                      logger.debug(f"Skipping loading data from file {file_path} into module {module_name}. Data already present...")
+                    with self.connection.get_ly_ctx() as ctx:
+                        data = ctx.parse_data_file(file, format, parse_only=True)
+                        # start with a fresh datastore, erase anything that was before
+                        # sess.copy_config("startup", module_name)
+                        sess.edit_batch_ly(data)
+                        sess.apply_changes()      
+
+                    # try:
+                    #   data = sess.get_data(f"/{module_name}:*")
+                    # except sysrepo.SysrepoNotFoundError:
+                    #   logger.debug(f"Did not find data for /{module_name}:*")
+                    #   data = None
+                    
+                    # if not data:
+                    #   with self.connection.get_ly_ctx() as ctx:
+                    #       data = ctx.parse_data_file(file, format, parse_only=True)
+                    #       # start with a fresh datastore, erase anything that was before
+                    #       # sess.copy_config("startup", module_name)
+                    #       sess.edit_batch_ly(data)
+                    #       sess.apply_changes()      
+                    # else:
+                    #   logger.debug(f"Skipping loading data from file {file_path} into module {module_name}. Data already present...")
 
     @staticmethod
     def get_datastore_files(directory: str, filter=None) -> list:
@@ -149,19 +157,19 @@ class Netconf:
             extensions = filter.split("|")
 
         extensions_pattern = '|'.join(extensions)
-        pattern_string = r'^(.+)-(running|operational)\.(' + extensions_pattern + ')$'
+        pattern_string = r'^(?:(\d+)-)?(.+)-(running|operational)\.(' + extensions_pattern + ')$'
         pattern = re.compile(pattern_string)
 
         # Dictionary to store results
         results = []
 
         # Iterate over files in the specified directory
-        for filename in os.listdir(directory):
+        for filename in sorted(os.listdir(directory)):
             # Check if the filename matches the expected pattern
             match = pattern.match(filename)
             if match:
                 # Extract parts of the filename
-                module_name, datastore, extension = match.groups()
+                _, module_name, datastore, extension = match.groups()
                 # Append the results
                 results.append({
                     'filename': f"{directory}/{filename}",

@@ -1,0 +1,9 @@
+{
+    "o-ran-operations:operational-info":{
+        "declarations":
+            {
+                "ru-instance-id":"pynts-o-ru-hybrid",
+                "supported-mplane-version": "16.0.0"
+            }
+    }
+}

@@ -286,6 +286,8 @@ Please note that `remote-address` and `remote-port` identify the Call-Home endpo
 
 Data can be loaded in the NETCONF datastores at boot-time. By creating files having the name "[yang-module-name]-[datastore].[xml|json]", and placing them in /data folder (/data can be mounted in the docker container and all files present there will be considered for loading). The files can be in either `xml` or `json` format. The accepted datastores are `running` or `operational`.
 
+Another name format for the file can be specified when there is a desire to load the files in a specific order: the name can have a number prefix, followed by a dash "[number-prefix]-[yang-module-name]-[datastore].[xml|json]". The entire "[number-prefix]-" is optional, but files containing it will be loaded before files which don't contain it. The order is defined by the mechanism for sorting strings in Python. For example ['1', '2', '10', '3', '002'] will be sorted to ['002', '1', '10', '2', '3'], so we always recommend leading zeros (0) when enforcing more than 9 files.
+
 ## Starting the simulator
 
 There are example docker-compose files for starting a simulated O-RU (actually 2 of them, one in hybrid mode, one in hierarchical mode) and another one for starting an O-DU. They can be started by simply doing `docker compose -f docker-compose-o-du-o1.yaml up -d` or `docker compose -f docker-compose-o-ru-mplane.yaml up -d`.

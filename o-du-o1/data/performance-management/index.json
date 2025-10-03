@@ -1,40 +1,40 @@
 {
     "config": {
         "log-period": 60,
-        "repetition-period": 180,
+        "repetition-period": 240,
 
         "points": [
-            "DRB.MeanActiveUeDl",
-            "DRB.MeanActiveUeUl",
-            "DRB.UEThpDl",
-            "DRB.UEThpUl"
+            "RRC.ConnMean",
+            "RRC.ConnMean.226F04",
+            "RRC.ConnMax",
+            "RRC.ConnMax.226F04"
         ]
     },
 
     "values": [
         {
-            "DRB.MeanActiveUeDl": 22,
-            "DRB.MeanActiveUeUl": 3,
-            "DRB.UEThpDl": 17,
-            "DRB.UEThpUl": 5
+            "RRC.ConnMean": 22,
+            "RRC.ConnMean.226F04": 3,
+            "RRC.ConnMax": 17,
+            "RRC.ConnMax.226F04": 5
         },
         {
-            "DRB.MeanActiveUeDl": 27,
-            "DRB.MeanActiveUeUl": 4,
-            "DRB.UEThpDl": 19,
-            "DRB.UEThpUl": 7
+            "RRC.ConnMean": 27,
+            "RRC.ConnMean.226F04": 4,
+            "RRC.ConnMax": 19,
+            "RRC.ConnMax.226F04": 7
         },
         {
-            "DRB.MeanActiveUeDl": 30,
-            "DRB.MeanActiveUeUl": 9,
-            "DRB.UEThpDl": 19,
-            "DRB.UEThpUl": 3
+            "RRC.ConnMean": 30,
+            "RRC.ConnMean.226F04": 9,
+            "RRC.ConnMax": 19,
+            "RRC.ConnMax.226F04": 3
         },
         {
-          "DRB.MeanActiveUeDl": 5,
-          "DRB.MeanActiveUeUl": 4,
-          "DRB.UEThpDl": 3,
-          "DRB.UEThpUl": 3
+          "RRC.ConnMean": 5,
+          "RRC.ConnMean.226F04": 4,
+          "RRC.ConnMax": 3,
+          "RRC.ConnMax.226F04": 3
         }
     ]
 }
