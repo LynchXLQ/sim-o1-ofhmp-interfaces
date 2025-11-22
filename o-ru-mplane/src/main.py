@@ -26,6 +26,9 @@ from util.crypto import CryptoUtils
 from util.threading import sa_sleep
 from util.logging import get_pynts_logger
 from sysrepo.errors import SysrepoNotFoundError
+from feature.o_ran_supervision import ORanSupervisionFeature
+from feature.o_ran_operations import ORanOperationsFeature
+from feature.o_ran_software_management import ORanSoftwareManagementFeature
 
 logger = get_pynts_logger("o-ru-mplane")
 
@@ -46,7 +49,10 @@ class Main(Extension):
         self.netconf = Netconf()
         self.config = Config()
         self.crypto_util = CryptoUtils()
-        
+        self.supervision = ORanSupervisionFeature()
+        self.operations = ORanOperationsFeature()
+        self.software_management = ORanSoftwareManagementFeature()
+
         DictFactory.add_template("o-ran-certificates", OranCertificatesTemplate)
         DictFactory.add_template("odl-netconf-callhome-server-ssh", OdlNetconfCallhomeServerSshTemplate)
         DictFactory.add_template("odl-netconf-callhome-server-tls", OdlNetconfCallhomeServerTlsTemplate)
@@ -58,6 +64,9 @@ class Main(Extension):
         self.update_o_ran_certificates()
         is_tls = self.replace_callhome_settings()
         self.start_odl_allow_thread(is_tls)
+        self.supervision.start()
+        self.operations.start()
+        self.software_management.start()
         logger.info("o-ru-mplane extension loaded")
 
     def update_o_ran_certificates(self) -> None:

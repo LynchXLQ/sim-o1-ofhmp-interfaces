@@ -235,35 +235,107 @@ class Alarm:
 
 
 
-    # @staticmethod
-    # def from_oran_fm(data: dict):
-    #     alarm = Alarm()
-    #     alarm.resource = data["fault-source"]
-    #     # alarm.alarm_type_id = data["alarm-type-id"]
-    #     alarm.alarm_type_qual = data["fault-id"]
+    @staticmethod
+    def from_oran_fm(data: dict):
+        """
+        Create Alarm object from O-RAN FM format data.
 
-    #     alarm.is_cleared = data["is-cleared"]
-    #     alarm.perceived_severity = data["fault-severity"]
+        Maps O-RAN FM fields to internal Alarm representation:
+        - fault-source → resource
+        - fault-id → alarm_type_qualifier
+        - fault-severity → perceived_severity
+        - is-cleared → is_cleared
+        - fault-text → alarm_text
+        - event-time → last_changed
+        """
+        from fault_management.fault_management import FaultManagement
 
-    #     alarm_time = data["event-time"]
+        # Map fault-id to alarm_type_qualifier, use default alarm type
+        fault_id = str(data["fault-id"])
+        fault_source = data["fault-source"]
+        alarm_type = data.get("alarm-type", "PROCESSING-ERROR-ALARM")
 
-    #     # update these checkAL
-    #     # alarm.time_created = data["time-created"]
-    #     # alarm.last_raised = data["last-raised"] # checkAL
-    #     # alarm.last_changed = data["last-changed"]
+        # Create alarm with required fields
+        alarm = Alarm(fault_source, alarm_type, fault_id)
 
-    #     alarm.alarm_text = data["fault-text"]
+        # Set state fields
+        alarm.is_cleared = data.get("is-cleared", False)
 
+        # Map severity - handle both O-RAN FM format (uppercase) and internal format
+        severity_str = data.get("fault-severity", "WARNING").lower()
+        alarm.perceived_severity = PerceivedSeverity(severity_str)
 
+        # Set descriptive text
+        alarm.alarm_text = data.get("fault-text", "")
 
-    #     return alarm
+        # Handle timestamps
+        if "event-time" in data:
+            alarm.last_changed = yang_datetime_to_datetime(data["event-time"])
+        else:
+            alarm.last_changed = datetime_utcnow()
 
-    # def to_oran_fm(self) -> dict:
-    #     return {}
+        # Set creation time if not raised before
+        alarm.time_created = alarm.last_changed
+        alarm.last_raised = alarm.last_changed if not alarm.is_cleared else alarm.time_created
 
-    # @staticmethod
-    # def from_oran_fm_notif(notif: dict):
-    #     return Alarm.from_oran_fm(notif)
+        # Register alarm with fault management if not already present
+        fm = FaultManagement()
+        existing = fm.get_alarm(alarm.c_id)
+        if existing is None:
+            fm.add_alarm(alarm)
+            logger.info(f"Added alarm from O-RAN FM data: {alarm.c_id}")
+        else:
+            # Update existing alarm
+            alarm = existing
+            alarm.is_cleared = data.get("is-cleared", False)
+            alarm.perceived_severity = PerceivedSeverity(severity_str)
+            alarm.alarm_text = data.get("fault-text", "")
+            logger.info(f"Updated existing alarm: {alarm.c_id}")
 
-    # def to_oran_fm_notif(self) -> dict:
-    #     return self.to_oran_fm()
+        return alarm
+
+    def to_oran_fm(self) -> dict:
+        """
+        Convert internal Alarm to O-RAN FM format.
+
+        Returns dict with all required O-RAN FM alarm fields:
+        - fault-id, fault-source, fault-severity, is-cleared,
+        - fault-text, event-time, affected-objects
+        """
+        # Map severity to O-RAN FM format (uppercase)
+        severity_map = {
+            PerceivedSeverity.CLEARED: "CLEARED",
+            PerceivedSeverity.INDETERMINATE: "WARNING",  # O-RAN FM doesn't have indeterminate
+            PerceivedSeverity.WARNING: "WARNING",
+            PerceivedSeverity.MINOR: "MINOR",
+            PerceivedSeverity.MAJOR: "MAJOR",
+            PerceivedSeverity.CRITICAL: "CRITICAL"
+        }
+
+        severity_oran = severity_map.get(self.perceived_severity, "WARNING")
+
+        # Build O-RAN FM alarm dict
+        oran_alarm = {
+            "fault-id": int(self.alarm_type_qualifier),
+            "fault-source": self.resource,
+            "fault-severity": severity_oran,
+            "is-cleared": self.is_cleared,
+            "fault-text": self.alarm_text,
+            "event-time": datetime_to_yang_datetime(self.last_changed)
+        }
+
+        # Add affected-objects if resource contains component info
+        # Extract component name from resource (e.g., "o-ran-hardware" → "hardware")
+        component_name = self.resource.split(":")[-1] if ":" in self.resource else self.resource
+        oran_alarm["affected-objects"] = [{"name": component_name}]
+
+        return oran_alarm
+
+    @staticmethod
+    def from_oran_fm_notif(notif: dict):
+        """Create Alarm from O-RAN FM notification format."""
+        return Alarm.from_oran_fm(notif)
+
+    def to_oran_fm_notif(self) -> dict:
+        """Convert Alarm to O-RAN FM notification format."""
+        return self.to_oran_fm()

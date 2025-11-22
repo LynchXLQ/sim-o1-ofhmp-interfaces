@@ -146,10 +146,21 @@ class FaultManagement:
 
             # get active alarm list if any
             current_alarms_dict = self.netconf.get_data(Datastore.OPERATIONAL, xpath)
-            checkAL
+            logger.info(f"Loaded O-RAN FM alarm data from operational datastore: {current_alarms_dict}")
+
+            # Load alarms from operational datastore into memory
+            if current_alarms_dict and "o-ran-fm:active-alarm-list" in current_alarms_dict:
+                alarm_list = current_alarms_dict["o-ran-fm:active-alarm-list"]
+                if "active-alarms" in alarm_list and isinstance(alarm_list["active-alarms"], list):
+                    for alarm_data in alarm_list["active-alarms"]:
+                        try:
+                            Alarm.from_oran_fm(alarm_data)
+                            logger.info(f"Loaded alarm: fault-id={alarm_data.get('fault-id')}, source={alarm_data.get('fault-source')}")
+                        except Exception as e:
+                            logger.error(f"Failed to load alarm: {e}")
 
             # subscribe to active alarm list
-            # self.netconf.operational.subscribe_oper_data_request("o-ran-fm", xpath, self._callback_oper_o_ran_fm_list)
+            self.netconf.operational.subscribe_oper_data_request("o-ran-fm", xpath, self._callback_oper_o_ran_fm_list)
 
     def load_alarms(self, alarm_data = None):
         if alarm_data is None:
