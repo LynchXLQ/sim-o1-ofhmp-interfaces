@@ -29,6 +29,9 @@ from sysrepo.errors import SysrepoNotFoundError
 from feature.o_ran_supervision import ORanSupervisionFeature
 from feature.o_ran_operations import ORanOperationsFeature
 from feature.o_ran_software_management import ORanSoftwareManagementFeature
+from feature.o_ran_troubleshooting import ORanTroubleshootingFeature
+from feature.o_ran_trace import ORanTraceFeature
+from feature.o_ran_file_management import ORanFileManagementFeature
 
 logger = get_pynts_logger("o-ru-mplane")
 
@@ -52,6 +55,9 @@ class Main(Extension):
         self.supervision = ORanSupervisionFeature()
         self.operations = ORanOperationsFeature()
         self.software_management = ORanSoftwareManagementFeature()
+        self.troubleshooting = ORanTroubleshootingFeature()
+        self.trace = ORanTraceFeature()
+        self.file_management = ORanFileManagementFeature()
 
         DictFactory.add_template("o-ran-certificates", OranCertificatesTemplate)
         DictFactory.add_template("odl-netconf-callhome-server-ssh", OdlNetconfCallhomeServerSshTemplate)
@@ -67,6 +73,9 @@ class Main(Extension):
         self.supervision.start()
         self.operations.start()
         self.software_management.start()
+        self.troubleshooting.start()
+        self.trace.start()
+        self.file_management.start()
         logger.info("o-ru-mplane extension loaded")
 
     def update_o_ran_certificates(self) -> None:

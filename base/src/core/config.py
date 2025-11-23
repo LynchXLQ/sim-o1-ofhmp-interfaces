@@ -110,8 +110,12 @@ class Config:
         self.tls_listen_endpoint: bool = self.get_envvar_bool("TLS_LISTEN_ENDPOINT", "False")
         self.ssh_callhome_endpoint: bool = self.get_envvar_bool("SSH_CALLHOME_ENDPOINT", "False")
         self.tls_callhome_endpoint: bool = self.get_envvar_bool("TLS_CALLHOME_ENDPOINT", "False")
-        
-        self.dhcp_get_config()
+
+        # Only run DHCP discovery if we're in call-home mode (not listen mode)
+        if self.ssh_callhome_endpoint or self.tls_callhome_endpoint:
+            self.dhcp_get_config()
+        else:
+            logger.info("Skipping DHCP discovery (listen mode enabled)")
 
         endpoints = os.environ.get("ENDPOINT_COUNT", 1)
         try:
@@ -304,7 +308,15 @@ class Config:
               ])
           )
           logger.debug("[*] Sending DHCPDISCOVER...")
-          sendp(discover, iface=iface, verbose=False)
+          try:
+              sendp(discover, iface=iface, verbose=False)
+          except OSError as e:
+              logger.warning(f"Skipping interface {iface}: {e}")
+              try:
+                  sniff_thread.stop()
+              except Exception:
+                  pass  # Sniffer may not be properly started, ignore
+              continue
 
           logger.debug("[*] Sniffing for 5 seconds...")
           time.sleep(5)
