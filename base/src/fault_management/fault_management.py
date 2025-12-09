@@ -62,6 +62,8 @@ class FaultManagement:
         self.rest = Rest()
 
         self.alarms = {}
+        self.alarm_config = {}
+        self.alarm_steps = []
 
         self.last_changed = datetime_utcnow()
 

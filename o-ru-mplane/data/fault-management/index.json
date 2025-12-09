@@ -1,0 +1,27 @@
+{
+  "config": {
+    "loop": false
+  },
+  "alarms": [
+    {
+      "alarm": {
+        "fault-id": 1,
+        "fault-source": "antenna-1",
+        "fault-severity": "MINOR",
+        "is-cleared": false,
+        "fault-text": "Test alarm for latency measurement"
+      },
+      "delay": 1
+    },
+    {
+      "alarm": {
+        "fault-id": 1,
+        "fault-source": "antenna-1",
+        "fault-severity": "MINOR",
+        "is-cleared": true,
+        "fault-text": "Test alarm for latency measurement"
+      },
+      "delay": 2
+    }
+  ]
+}

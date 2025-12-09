@@ -78,28 +78,40 @@ class ORanFileManagementFeature:
         logger.info("Received file-upload RPC")
 
         try:
-            # Extract parameters from input_params
-            local_path = None
-            remote_path = None
+            # Validate input parameters exist
+            if not input_params:
+                error_msg = "Missing input parameters for file-upload RPC"
+                logger.error(error_msg)
+                return {"status": "FAILURE"}
 
-            if input_params:
-                # Parse input parameters
-                logger.debug(f"Input params: {input_params}")
-                # For now, we'll extract from the RPC input tree if available
-                # In real implementation, would parse from input_params dict
+            logger.debug(f"Input params: {input_params}")
 
-            # For test purposes, simulate upload in background
+            # Extract local-logical-file-path (mandatory)
+            if 'local-logical-file-path' not in input_params:
+                error_msg = "Missing required parameter 'local-logical-file-path'"
+                logger.error(error_msg)
+                return {"status": "FAILURE"}
+
+            local_path = input_params['local-logical-file-path']
+
+            # Extract remote-file-path (mandatory)
+            if 'remote-file-path' not in input_params:
+                error_msg = "Missing required parameter 'remote-file-path'"
+                logger.error(error_msg)
+                return {"status": "FAILURE"}
+
+            remote_path = input_params['remote-file-path']
+
+            logger.info(f"File upload requested: {local_path} -> {remote_path}")
+
+            # Simulate upload in background
             def simulate_upload():
                 time.sleep(1)  # Simulate upload delay
 
-                # Get paths from last known context (simplified for test)
-                local_file = "o-ran/log/test.gz"
-                remote_file = "sftp://user@localhost:22/logs/test.gz"
+                logger.info(f"Simulated upload completed: {local_path} -> {remote_path}")
 
-                logger.info(f"Simulated upload: {local_file} -> {remote_file}")
-
-                # Send file-upload-notification
-                self._send_upload_notification(local_file, remote_file, "SUCCESS")
+                # Send file-upload-notification with actual parameters
+                self._send_upload_notification(local_path, remote_path, "SUCCESS")
 
             upload_thread = threading.Thread(target=simulate_upload, name="file-upload-handler")
             upload_thread.daemon = True
