@@ -82,7 +82,7 @@ class Main(Extension):
         ### end sample notification from YANG Schema Mount 
         
     def o_ran_aggregation_base_oper_data_cb(self, xpath, private_data):
-      
+
       global active_sessions
       num_of_sessions = len(list(active_sessions.keys()))
       if num_of_sessions == 0:
@@ -90,20 +90,31 @@ class Main(Extension):
 
       agg_base_xml = f"<aggregated-o-ru xmlns=\"urn:o-ran:agg-base:1.0\">\n"
 
-      for _, value in active_sessions.items():        
-        mgr = value["session"]
-        xml_data_str = mgr.get(filter="<filter><hw:hardware xmlns:hw=\"urn:ietf:params:xml:ns:yang:ietf-hardware\"/></filter>").data_xml        
+      # First, add recovered-ru-instance-ids list
+      for _, value in active_sessions.items():
+        ru_instance_id = value.get('ru_instance_id', value['hostname'])
+        agg_base_xml += f"<recovered-ru-instance-ids><ru-instance-id>{ru_instance_id}</ru-instance-id></recovered-ru-instance-ids>\n"
 
-        with self.netconf.connection.get_ly_ctx() as ctx:
+      # Then, add aggregation entries with hardware data
+      for _, value in active_sessions.items():
+        mgr = value["session"]
+        ru_instance_id = value.get('ru_instance_id', value['hostname'])
+
+        try:
+          xml_data_str = mgr.get(filter="<filter><hw:hardware xmlns:hw=\"urn:ietf:params:xml:ns:yang:ietf-hardware\"/></filter>").data_xml
           ietf_hw_xml = self.get_xml_string_from_response(xml_data_str)
-          aggregation_instance_xml = f"<aggregation><ru-instance>{value['hostname']}</ru-instance><ietf-hardware-model xmlns=\"urn:o-ran:agg-ietf-hardware:1.0\">{ietf_hw_xml}</ietf-hardware-model></aggregation>"
+          aggregation_instance_xml = f"<aggregation><ru-instance>{ru_instance_id}</ru-instance><ietf-hardware-model xmlns=\"urn:o-ran:agg-ietf-hardware:1.0\">{ietf_hw_xml}</ietf-hardware-model></aggregation>"
           agg_base_xml += f"{aggregation_instance_xml}"
-        
-      agg_base_xml += f"</aggregated-o-ru>"                      
+        except Exception as e:
+          logger.warning(f"Failed to get hardware data for {ru_instance_id}: {e}")
+          agg_base_xml += f"<aggregation><ru-instance>{ru_instance_id}</ru-instance></aggregation>"
+
+      agg_base_xml += f"</aggregated-o-ru>"
       logger.debug(f"Constructed XML: {agg_base_xml}")
-                        
-      data = ctx.parse_data_mem(agg_base_xml, "xml", parse_only=True)
-      return data       
+
+      with self.netconf.connection.get_ly_ctx() as ctx:
+        data = ctx.parse_data_mem(agg_base_xml, "xml", parse_only=True)
+        return data       
 
     def handle_callhome_session(self, conn, addr, session_id):
       """
@@ -124,9 +135,20 @@ class Main(Extension):
           hostname_json = self.get_json_object_from_xml(hostname_xml_data_str)
           hostname_str = hostname_json.get("ietf-system:system", {"hostname": "error-oru"}).get("hostname", "error-oru")
 
+          # Get ru-instance-id from o-ran-operations (required for aggregation)
+          ru_instance_id = hostname_str  # fallback to hostname
+          try:
+              ops_xml_data_str = mgr.get(filter="<filter><or-ops:operational-info xmlns:or-ops=\"urn:o-ran:operations:1.0\"><or-ops:declarations><or-ops:ru-instance-id/></or-ops:declarations></or-ops:operational-info></filter>").data_xml
+              ops_json = self.get_json_object_from_xml(ops_xml_data_str)
+              if ops_json:
+                  ru_instance_id = ops_json.get("o-ran-operations:operational-info", {}).get("declarations", {}).get("ru-instance-id", hostname_str)
+              logger.info(f"Retrieved ru-instance-id: {ru_instance_id}")
+          except Exception as e:
+              logger.warning(f"Could not get ru-instance-id from O-RU, using hostname: {e}")
+
           # Add the session to the active_sessions dictionary
           with session_lock:
-              active_sessions[session_id] = {'address': addr, 'session': mgr, 'hostname': hostname_str}
+              active_sessions[session_id] = {'address': addr, 'session': mgr, 'hostname': hostname_str, 'ru_instance_id': ru_instance_id}
               logger.info(f"Active sessions: {list(active_sessions.keys())}")
 
           mgr.create_subscription()
@@ -158,8 +180,12 @@ class Main(Extension):
           # Remove the session from the active_sessions dictionary
           with session_lock:
               if session_id in active_sessions:
-                  self.netconf.running.delete_item(f"/o-ran-aggregation-base:aggregated-o-ru/aggregation[ru-instance=\"{active_sessions[session_id]['hostname']}\"]")
-                  self.netconf.running.apply_changes()
+                  ru_instance_id = active_sessions[session_id].get('ru_instance_id', active_sessions[session_id]['hostname'])
+                  try:
+                      self.netconf.running.delete_item(f"/o-ran-aggregation-base:aggregated-o-ru/aggregation[ru-instance=\"{ru_instance_id}\"]")
+                      self.netconf.running.apply_changes()
+                  except Exception as e:
+                      logger.warning(f"Failed to delete aggregation entry for {ru_instance_id}: {e}")
                   del active_sessions[session_id]
                   logger.info(f"Session {session_id} with {addr} closed")
                   logger.debug(f"Active sessions: {list(active_sessions.keys())}")
@@ -232,27 +258,29 @@ class Main(Extension):
     def sync_running(self, session_id) -> None:
       session_details = active_sessions[session_id]
       mgr = session_details['session']
+      ru_instance_id = session_details.get('ru_instance_id', session_details['hostname'])
+
       xml_data_str = mgr.get_config(source="running", filter="<filter><hw:hardware xmlns:hw=\"urn:ietf:params:xml:ns:yang:ietf-hardware\"/></filter>").data_xml
 
-      with self.netconf.connection.get_ly_ctx() as ctx:              
-          
-          ietf_hw_xml = self.get_xml_string_from_response(xml_data_str)          
+      with self.netconf.connection.get_ly_ctx() as ctx:
+
+          ietf_hw_xml = self.get_xml_string_from_response(xml_data_str)
           agg_base_xml = f"""<aggregated-o-ru xmlns="urn:o-ran:agg-base:1.0">
                             <aggregation>
-                              <ru-instance>{session_details['hostname']}</ru-instance>
-                              <ietf-hardware-model  xmlns="urn:o-ran:agg-ietf-hardware:1.0"> 
+                              <ru-instance>{ru_instance_id}</ru-instance>
+                              <ietf-hardware-model xmlns="urn:o-ran:agg-ietf-hardware:1.0">
                                 {ietf_hw_xml}
-                            </ietf-hardware-model>
+                              </ietf-hardware-model>
                             </aggregation>
                           </aggregated-o-ru>
                           """
-                          
+
           data = ctx.parse_data_mem(agg_base_xml, "xml", parse_only=True)
-          
+
           with self.netconf.connection.start_session("running") as sess:
             sess.edit_batch_ly(data)
             sess.apply_changes()
-          
+
           data.free()
 
     def load_3gpp_data(self) -> None:
