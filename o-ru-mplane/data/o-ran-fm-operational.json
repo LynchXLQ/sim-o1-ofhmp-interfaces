@@ -1,0 +1,45 @@
+{
+  "o-ran-fm:active-alarm-list": {
+    "active-alarms": [
+      {
+        "fault-id": 17,
+        "fault-source": "o-ran-sync",
+        "affected-objects": [
+          {
+            "name": "sync-ptp-clock"
+          }
+        ],
+        "fault-severity": "MAJOR",
+        "is-cleared": false,
+        "fault-text": "No external sync source available",
+        "event-time": "2025-11-10T12:00:00.000Z"
+      },
+      {
+        "fault-id": 2,
+        "fault-source": "o-ran-hardware",
+        "affected-objects": [
+          {
+            "name": "power-module-1"
+          }
+        ],
+        "fault-severity": "CRITICAL",
+        "is-cleared": false,
+        "fault-text": "Power supply failure detected",
+        "event-time": "2025-11-10T12:05:00.000Z"
+      },
+      {
+        "fault-id": 100,
+        "fault-source": "o-ran-processing-element",
+        "affected-objects": [
+          {
+            "name": "cpu-0"
+          }
+        ],
+        "fault-severity": "WARNING",
+        "is-cleared": false,
+        "fault-text": "High CPU temperature threshold exceeded",
+        "event-time": "2025-11-10T12:10:00.000Z"
+      }
+    ]
+  }
+}

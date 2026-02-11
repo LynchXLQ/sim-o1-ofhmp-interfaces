@@ -1,0 +1,6 @@
+{
+  "o-ran-udp-echo:udp-echo": {
+    "enable-udp-echo": true,
+    "dscp-config": "EF"
+  }
+}

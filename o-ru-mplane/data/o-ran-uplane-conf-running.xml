@@ -1,99 +1,24 @@
 <user-plane-configuration xmlns="urn:o-ran:uplane-conf:1.0">
+    <!-- Default test carrier for conformance testing -->
     <tx-array-carriers>
-        <name>Operator - 0 degrees</name>
-        <absolute-frequency-center>1800</absolute-frequency-center>
+        <name>carrier-1</name>
+        <absolute-frequency-center>3600000</absolute-frequency-center>
         <center-of-channel-bandwidth>25000</center-of-channel-bandwidth>
         <channel-bandwidth>56000</channel-bandwidth>
         <active>ACTIVE</active>
-        <rw-duplex-scheme>FDD</rw-duplex-scheme>
-        <rw-type>NR</rw-type>
-        <band-number>46</band-number>
-      <laa-carrier-configuration>
-          <transmission-power-for-drs>-42</transmission-power-for-drs>
-      </laa-carrier-configuration>
-        <gain>3</gain>
+        <gain>0</gain>
         <downlink-radio-frame-offset>0</downlink-radio-frame-offset>
         <downlink-sfn-offset>0</downlink-sfn-offset>
     </tx-array-carriers>
-    <tx-array-carriers>
-        <name>Operator - 120 degrees</name>
-        <absolute-frequency-center>1800</absolute-frequency-center>
+    <rx-array-carriers>
+        <name>carrier-1</name>
+        <absolute-frequency-center>3600000</absolute-frequency-center>
         <center-of-channel-bandwidth>25000</center-of-channel-bandwidth>
         <channel-bandwidth>56000</channel-bandwidth>
         <active>ACTIVE</active>
-        <rw-duplex-scheme>FDD</rw-duplex-scheme>
-        <rw-type>NR</rw-type>
-        <band-number>46</band-number>
-      <laa-carrier-configuration>
-          <transmission-power-for-drs>-42</transmission-power-for-drs>
-      </laa-carrier-configuration>
-        <gain>3</gain>
+        <gain-correction>0</gain-correction>
         <downlink-radio-frame-offset>0</downlink-radio-frame-offset>
         <downlink-sfn-offset>0</downlink-sfn-offset>
-    </tx-array-carriers>
-    <tx-array-carriers>
-        <name>Operator - 240 degrees</name>
-        <absolute-frequency-center>1800</absolute-frequency-center>
-        <center-of-channel-bandwidth>25000</center-of-channel-bandwidth>
-        <channel-bandwidth>56000</channel-bandwidth>
-        <active>ACTIVE</active>
-        <rw-duplex-scheme>FDD</rw-duplex-scheme>
-        <rw-type>NR</rw-type>
-        <band-number>46</band-number>
-      <laa-carrier-configuration>
-          <transmission-power-for-drs>-42</transmission-power-for-drs>
-      </laa-carrier-configuration>
-        <gain>3</gain>
-        <downlink-radio-frame-offset>0</downlink-radio-frame-offset>
-        <downlink-sfn-offset>0</downlink-sfn-offset>
-    </tx-array-carriers>
-    <tx-array-carriers>
-        <name>Public Safety - 0 degrees</name>
-        <absolute-frequency-center>1800</absolute-frequency-center>
-        <center-of-channel-bandwidth>25000</center-of-channel-bandwidth>
-        <channel-bandwidth>56000</channel-bandwidth>
-        <active>INACTIVE</active>
-        <rw-duplex-scheme>FDD</rw-duplex-scheme>
-        <rw-type>NR</rw-type>
-        <band-number>46</band-number>
-      <laa-carrier-configuration>
-          <transmission-power-for-drs>-99</transmission-power-for-drs>
-      </laa-carrier-configuration>
-        <gain>3</gain>
-        <downlink-radio-frame-offset>0</downlink-radio-frame-offset>
-        <downlink-sfn-offset>0</downlink-sfn-offset>
-    </tx-array-carriers>
-    <tx-array-carriers>
-        <name>Public Safety - 120 degrees</name>
-        <absolute-frequency-center>1800</absolute-frequency-center>
-        <center-of-channel-bandwidth>25000</center-of-channel-bandwidth>
-        <channel-bandwidth>56000</channel-bandwidth>
-        <active>INACTIVE</active>
-        <rw-duplex-scheme>FDD</rw-duplex-scheme>
-        <rw-type>NR</rw-type>
-        <band-number>46</band-number>
-      <laa-carrier-configuration>
-          <transmission-power-for-drs>-99</transmission-power-for-drs>
-      </laa-carrier-configuration>
-        <gain>3</gain>
-        <downlink-radio-frame-offset>0</downlink-radio-frame-offset>
-        <downlink-sfn-offset>0</downlink-sfn-offset>
-    </tx-array-carriers>
-    <tx-array-carriers>
-        <name>Public Safety - 240 degrees</name>
-        <absolute-frequency-center>1800</absolute-frequency-center>
-        <center-of-channel-bandwidth>25000</center-of-channel-bandwidth>
-        <channel-bandwidth>56000</channel-bandwidth>
-        <active>INACTIVE</active>
-        <rw-duplex-scheme>FDD</rw-duplex-scheme>
-        <rw-type>NR</rw-type>
-        <band-number>46</band-number>
-      <laa-carrier-configuration>
-          <transmission-power-for-drs>-99</transmission-power-for-drs>
-      </laa-carrier-configuration>
-        <gain>3</gain>
-        <downlink-radio-frame-offset>0</downlink-radio-frame-offset>
-        <downlink-sfn-offset>0</downlink-sfn-offset>
-    </tx-array-carriers>
-
-  </user-plane-configuration>
+        <n-ta-offset>0</n-ta-offset>
+    </rx-array-carriers>
+</user-plane-configuration>

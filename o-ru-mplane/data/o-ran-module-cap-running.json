@@ -1,0 +1,18 @@
+{
+  "o-ran-module-cap:module-capability": {
+    "supported-compression-methods": [
+      {
+        "compression-type": "STATIC",
+        "supported-compression-formats": [
+          {
+            "iq-bitwidth": 14,
+            "exponent": 4
+          }
+        ]
+      }
+    ],
+    "energy-saving-supported": true,
+    "carrier-deactivation-supported": true,
+    "dynamic-transport-delay-management-supported": true
+  }
+}

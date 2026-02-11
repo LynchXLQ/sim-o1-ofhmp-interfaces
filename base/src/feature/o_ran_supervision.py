@@ -212,10 +212,9 @@ class ORanSupervisionFeature:
 
             with self.lock:
                 if not self.supervision_active or self.last_watchdog_reset is None:
-                    if timeout_alarm_active:
-                        # Clear alarm if it was active
-                        self._clear_supervision_timeout_alarm()
-                        timeout_alarm_active = False
+                    # Don't clear alarm here - the alarm should persist after timeout
+                    # until supervision is explicitly resumed via watchdog reset
+                    # If we cleared here, we'd clear it right after raising due to timeout
                     continue
 
                 current_time = datetime.now(timezone.utc)
@@ -275,20 +274,58 @@ class ORanSupervisionFeature:
             # Build alarm notification according to o-ran-fm YANG schema
             alarm_time = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
 
+            # Use fault-id 3 for supervision timeout (uint16 as per YANG schema)
+            # fault-id must be an integer, not a string
             alarm_data = {
-                "fault-id": "supervision-watchdog-timeout",
-                "fault-severity": "MAJOR",
-                "fault-text": "Supervision watchdog timeout - no watchdog reset received",
-                "is-cleared": False,
+                "fault-id": 3,
                 "fault-source": "o-ran-supervision",
+                "affected-objects": [
+                    {
+                        "name": "supervision-watchdog"
+                    }
+                ],
+                "fault-severity": "MAJOR",
+                "is-cleared": False,
+                "fault-text": "Supervision watchdog timeout - no watchdog reset received",
                 "event-time": alarm_time
             }
 
-            logger.info("Raising supervision-watchdog-timeout alarm")
+            logger.info("Raising supervision-watchdog-timeout alarm (fault-id=3)")
+
+            # Add alarm to active-alarm-list in operational datastore
+            try:
+                # Get current alarms
+                current_alarms = []
+                try:
+                    alarm_list_data = self.netconf.operational.get_data("/o-ran-fm:active-alarm-list")
+                    if alarm_list_data:
+                        if "o-ran-fm:active-alarm-list" in alarm_list_data:
+                            current_alarms = alarm_list_data["o-ran-fm:active-alarm-list"].get("active-alarms", [])
+                        elif "active-alarm-list" in alarm_list_data:
+                            current_alarms = alarm_list_data["active-alarm-list"].get("active-alarms", [])
+                except Exception:
+                    pass
+
+                # Remove any existing supervision alarms (fault-id 3) before adding new one
+                current_alarms = [alarm for alarm in current_alarms if str(alarm.get("fault-id")) != "3"]
+                
+                # Add new alarm
+                current_alarms.append(alarm_data)
+
+                # Update operational datastore
+                updated_data = {
+                    "active-alarm-list": {
+                        "active-alarms": current_alarms
+                    }
+                }
+                self.netconf.set_data(Datastore.OPERATIONAL, "o-ran-fm", updated_data)
+                logger.debug("Added supervision timeout alarm to active-alarm-list")
+            except Exception as e:
+                logger.error(f"Failed to add alarm to active-alarm-list: {e}")
 
             # Send alarm notification
             self.netconf.running.notification_send(
-                "/o-ran-fm:alarm-notif/alarm-notif",
+                "/o-ran-fm:alarm-notif",
                 alarm_data
             )
 
@@ -297,45 +334,69 @@ class ORanSupervisionFeature:
 
     def _clear_supervision_timeout_alarm(self):
         """Clear supervision-watchdog-timeout alarm via o-ran-fm."""
+        import sysrepo
         try:
             alarm_time = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
-
             logger.info("Clearing supervision-watchdog-timeout alarm")
 
-            # Read current active alarms
+            # Since active-alarms is a keyless list, we can't delete individual items
+            # Instead: delete entire list, then recreate with filtered items
             try:
+                # First read current alarms
                 alarm_list_data = self.netconf.operational.get_data("/o-ran-fm:active-alarm-list")
-                if alarm_list_data and "o-ran-fm:active-alarm-list" in alarm_list_data:
-                    active_alarms = alarm_list_data["o-ran-fm:active-alarm-list"].get("active-alarms", [])
-                    # Filter out the supervision timeout alarm
-                    filtered_alarms = [alarm for alarm in active_alarms
-                                       if alarm.get("fault-id") != "supervision-watchdog-timeout"]
+                active_alarms = []
+                if alarm_list_data:
+                    if "o-ran-fm:active-alarm-list" in alarm_list_data:
+                        active_alarms = alarm_list_data["o-ran-fm:active-alarm-list"].get("active-alarms", [])
+                    elif "active-alarm-list" in alarm_list_data:
+                        active_alarms = alarm_list_data["active-alarm-list"].get("active-alarms", [])
 
-                    # Update the active alarm list
+                logger.debug(f"Active alarms before filter: {len(active_alarms)} alarms")
+
+                # Filter out supervision alarms (fault-id 3)
+                filtered_alarms = [alarm for alarm in active_alarms
+                                   if str(alarm.get("fault-id")) != "3"]
+
+                logger.debug(f"Active alarms after filter: {len(filtered_alarms)} alarms")
+
+                # Delete entire active-alarm-list then recreate with filtered items
+                with sysrepo.SysrepoConnection() as conn:
+                    with conn.start_session('operational') as sess:
+                        try:
+                            # Delete the container
+                            sess.delete_oper_item("/o-ran-fm:active-alarm-list")
+                            sess.apply_changes()
+                            logger.info("Deleted active-alarm-list container")
+                        except Exception as e:
+                            logger.debug(f"Could not delete container: {e}")
+
+                # Recreate with filtered alarms using merge
+                if filtered_alarms:
                     updated_data = {
                         "active-alarm-list": {
                             "active-alarms": filtered_alarms
                         }
                     }
                     self.netconf.set_data(Datastore.OPERATIONAL, "o-ran-fm", updated_data)
-                    logger.debug("Removed alarm from active-alarm-list")
+                    logger.info("Recreated active-alarm-list without supervision alarm")
+                else:
+                    logger.info("No alarms remaining after filter")
+
             except Exception as e:
-                logger.debug(f"Could not remove alarm from list: {e}")
+                logger.error(f"Could not delete alarm from list: {e}")
 
             # Send alarm cleared notification
             alarm_data = {
-                "fault-id": "supervision-watchdog-timeout",
-                "fault-severity": "MAJOR",
-                "fault-text": "Supervision watchdog timeout cleared",
-                "is-cleared": True,
+                "fault-id": 3,
                 "fault-source": "o-ran-supervision",
+                "affected-objects": [{"name": "supervision-watchdog"}],
+                "fault-severity": "MAJOR",
+                "is-cleared": True,
+                "fault-text": "Supervision watchdog timeout cleared",
                 "event-time": alarm_time
             }
 
-            self.netconf.running.notification_send(
-                "/o-ran-fm:alarm-notif/alarm-notif",
-                alarm_data
-            )
+            self.netconf.running.notification_send("/o-ran-fm:alarm-notif", alarm_data)
             logger.debug("Sent alarm cleared notification")
 
         except Exception as e:

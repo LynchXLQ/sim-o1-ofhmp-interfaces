@@ -1,0 +1,25 @@
+{
+  "o-ran-externalio:external-io": {
+    "input-port": [
+      {
+        "port-id": 0,
+        "port-state": "enabled",
+        "line-in": true,
+        "connector-label": "INPUT-1"
+      },
+      {
+        "port-id": 1,
+        "port-state": "disabled",
+        "line-in": false,
+        "connector-label": "OUTPUT-1"
+      }
+    ],
+    "output-port": [
+      {
+        "port-id": 0,
+        "port-state": "enabled",
+        "connector-label": "OUTPUT-1"
+      }
+    ]
+  }
+}

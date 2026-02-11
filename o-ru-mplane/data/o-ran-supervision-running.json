@@ -1,0 +1,7 @@
+{
+  "o-ran-supervision:supervision": {
+    "cu-plane-monitoring": {
+      "configured-cu-monitoring-interval": 160
+    }
+  }
+}

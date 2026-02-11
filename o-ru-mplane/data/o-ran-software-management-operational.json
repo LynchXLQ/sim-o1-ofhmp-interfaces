@@ -1,0 +1,30 @@
+{
+  "o-ran-software-management:software-inventory": {
+    "software-slot": [
+      {
+        "name": "SLOT0",
+        "status": "VALID",
+        "active": false,
+        "running": false,
+        "access": "READ_WRITE",
+        "product-code": "O-RU-Board",
+        "vendor-code": "50001",
+        "build-id": "2.0.0",
+        "build-name": "Update Image",
+        "build-version": "v2.0.0"
+      },
+      {
+        "name": "SLOT1",
+        "status": "VALID",
+        "active": true,
+        "running": true,
+        "access": "READ_ONLY",
+        "product-code": "O-RU-Board",
+        "vendor-code": "50001",
+        "build-id": "1.0.0",
+        "build-name": "Factory Image",
+        "build-version": "v1.0.0"
+      }
+    ]
+  }
+}

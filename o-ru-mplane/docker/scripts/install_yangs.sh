@@ -49,7 +49,7 @@ MODULES=(
 "o-ran-fm.yang"
 "o-ran-hardware.yang -e ENERGYSAVING"
 "o-ran-ieee802-dot1q-cfm.yang"
-"o-ran-interfaces.yang"
+"o-ran-interfaces.yang -e UDPIP-BASED-CU-PLANE"
 "o-ran-laa.yang"
 "o-ran-laa-operations.yang"
 "o-ran-lbm.yang"
