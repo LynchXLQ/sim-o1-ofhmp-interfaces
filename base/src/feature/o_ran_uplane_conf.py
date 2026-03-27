@@ -87,6 +87,24 @@ class ORanUplaneConfFeature:
         """
         logger.info(f"Uplane-conf config change event: {event}")
 
+        # Only validate eAxC uniqueness during CHANGE event, skip all other processing
+        event_str = str(event)
+        if "CHANGE" in event_str and "DONE" not in event_str:
+            try:
+                has_eaxc = False
+                for change in changes:
+                    change_str = str(change)
+                    if "eaxc-id" in change_str or "e-axcid" in change_str:
+                        has_eaxc = True
+                        break
+                if has_eaxc:
+                    self._validate_eaxc_uniqueness(changes)
+            except ValueError:
+                raise  # Re-raise to reject duplicate eAxC IDs
+            except Exception:
+                pass  # Don't block edit-config for non-validation errors
+            return  # Always return cleanly for CHANGE events
+
         try:
             for change in changes:
                 logger.debug(f"Change: {change}")
@@ -113,8 +131,90 @@ class ORanUplaneConfFeature:
                 if "energy-sharing-groups-disabled" in change_str:
                     self._handle_energy_sharing_group_change(change, change_str)
 
+            # After processing changes, check for eAxC uniqueness
+            for change in changes:
+                change_str = str(change)
+                if "eaxc-id" in change_str or "e-axcid" in change_str:
+                    self._validate_eaxc_uniqueness(changes)
+                    break
+
+            # Send config-change notification after validation passes
+            self._send_config_change_notification()
+
+        except ValueError:
+            # eAxC uniqueness violation — reject the edit-config
+            raise
         except Exception as e:
-            logger.error(f"Error handling config change: {e}")
+            # Other errors should not block the edit-config
+            logger.error(f"Error in config change handler (non-blocking): {e}")
+
+    def _send_config_change_notification(self):
+        """Send ietf-netconf-notifications:netconf-config-change notification in background."""
+        import time as _time
+
+        def _send():
+            _time.sleep(1)  # Delay to let sysrepo commit finish
+            try:
+                notification_data = {
+                    "changed-by": {"server": None},
+                    "datastore": "running"
+                }
+                self.netconf.running.notification_send(
+                    "/ietf-netconf-notifications:netconf-config-change",
+                    notification_data
+                )
+                logger.info("Sent netconf-config-change notification")
+            except Exception as e:
+                logger.debug(f"Could not send config-change notification: {e}")
+
+        t = threading.Thread(target=_send, daemon=True)
+        t.start()
+
+    def _validate_eaxc_uniqueness(self, changes):
+        """Validate eAxC ID uniqueness per endpoint type per O-RAN spec.
+
+        Per spec 3.1.10.1: TX and RX endpoints may share the same eAxC IDs.
+        Uniqueness is only required WITHIN each endpoint type (all TX unique,
+        all RX unique). Duplicates within the same type are rejected.
+        """
+        try:
+            tx_ids = []
+            rx_ids = []
+            current_type = None
+
+            for change in changes:
+                change_str = str(change)
+                # Track which endpoint type we're in
+                if "low-level-tx" in change_str:
+                    current_type = "tx"
+                elif "low-level-rx" in change_str:
+                    current_type = "rx"
+
+                # Extract eAxC ID
+                eid_match = re.search(r'eaxc-id["\'\s:=]+(\d+)', change_str)
+                if eid_match and current_type:
+                    eid = int(eid_match.group(1))
+                    if current_type == "tx":
+                        tx_ids.append(eid)
+                    else:
+                        rx_ids.append(eid)
+
+            # Check duplicates within TX
+            if len(tx_ids) != len(set(tx_ids)):
+                dupes = [x for x in tx_ids if tx_ids.count(x) > 1]
+                raise ValueError(f"Duplicate eAxC ID {dupes[0]} in TX endpoints")
+
+            # Check duplicates within RX
+            if len(rx_ids) != len(set(rx_ids)):
+                dupes = [x for x in rx_ids if rx_ids.count(x) > 1]
+                raise ValueError(f"Duplicate eAxC ID {dupes[0]} in RX endpoints")
+
+            logger.debug(f"eAxC uniqueness validated: TX={len(tx_ids)}, RX={len(rx_ids)}")
+
+        except ValueError:
+            raise
+        except Exception as e:
+            logger.debug(f"Could not validate eAxC uniqueness: {e}")
 
     def _extract_carrier_change(self, change, carrier_type: str):
         """

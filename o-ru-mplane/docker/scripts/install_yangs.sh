@@ -31,6 +31,7 @@ source "${script_directory}/common.sh"
 
 # array of modules to install
 MODULES=(
+"o-ran-wg4-features.yang -e DEEP-HIBERNATE -e TRX-CONTROL -e MPLANE-TRX-CONTROL -e MPLANE-DATA-LAYER-CONTROL -e SHARED-ORU-MULTI-OPERATOR -e SHARED-ORU-MULTI-ODU"
 "o-ran-ald.yang"
 "o-ran-ald-port.yang"
 "o-ran-antenna-calibration.yang"
@@ -69,7 +70,6 @@ MODULES=(
 "o-ran-uplane-conf.yang"
 "o-ran-usermgmt.yang -I /usr/local/share/yang/modules/pynts/o-ran-usermgmt.xml"
 "o-ran-ves-subscribed-notifications.yang"
-"o-ran-wg4-features.yang"
 )
 
 # get path to sysrepoctl executable, this will be stored in $SYSREPOCTL

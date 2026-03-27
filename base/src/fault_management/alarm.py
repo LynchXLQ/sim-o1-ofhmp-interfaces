@@ -303,9 +303,11 @@ class Alarm:
         - fault-text, event-time, affected-objects
         """
         # Map severity to O-RAN FM format (uppercase)
+        # NOTE: O-RAN FM YANG only allows CRITICAL/MAJOR/MINOR/WARNING
+        # CLEARED is NOT a valid fault-severity. Use is-cleared flag instead.
         severity_map = {
-            PerceivedSeverity.CLEARED: "CLEARED",
-            PerceivedSeverity.INDETERMINATE: "WARNING",  # O-RAN FM doesn't have indeterminate
+            PerceivedSeverity.CLEARED: "WARNING",  # Use WARNING for cleared alarms (is-cleared=true handles the state)
+            PerceivedSeverity.INDETERMINATE: "WARNING",
             PerceivedSeverity.WARNING: "WARNING",
             PerceivedSeverity.MINOR: "MINOR",
             PerceivedSeverity.MAJOR: "MAJOR",

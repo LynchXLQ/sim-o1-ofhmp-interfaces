@@ -36,6 +36,7 @@ from feature.o_ran_energy_saving import ORanEnergySavingFeature
 from feature.o_ran_uplane_conf import ORanUplaneConfFeature
 from feature.o_ran_udp_echo import ORanUdpEchoFeature
 from feature.o_ran_epe_statistics import ORanEpeStatisticsFeature
+from feature.o_ran_usermgmt import ORanUsermgmtFeature
 
 logger = get_pynts_logger("o-ru-mplane")
 
@@ -66,6 +67,7 @@ class Main(Extension):
         self.uplane_conf = ORanUplaneConfFeature()
         self.udp_echo = ORanUdpEchoFeature()
         self.epe_statistics = ORanEpeStatisticsFeature()
+        self.usermgmt = ORanUsermgmtFeature()
 
         DictFactory.add_template("o-ran-certificates", OranCertificatesTemplate)
         DictFactory.add_template("odl-netconf-callhome-server-ssh", OdlNetconfCallhomeServerSshTemplate)
@@ -88,6 +90,7 @@ class Main(Extension):
         self.uplane_conf.start()
         self.udp_echo.start()
         self.epe_statistics.start()
+        self.usermgmt.start()
         logger.info("o-ru-mplane extension loaded")
 
     def update_o_ran_certificates(self) -> None:

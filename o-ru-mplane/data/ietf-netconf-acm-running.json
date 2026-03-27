@@ -7,103 +7,75 @@
       "enable-external-groups": false,
       "groups": {
         "group": [
-          {
-            "name": "sudo",
-            "user-name": [
-              "sudo",
-              "admin",
-              "demx8as6",
-              "netconf"
-            ]
-          },
-          {
-            "name": "nms",
-            "user-name": [
-              "nms",
-              "nero"
-            ]
-          },
-          {
-            "name": "fm-pm",
-            "user-name": [
-              "fm-pm",
-              "filippa"
-            ]
-          },
-          {
-            "name": "swm",
-            "user-name": [
-              "swm",
-              "swami"
-            ]
-          },
-          {
-            "name": "smo",
-            "user-name": [
-              "smo",
-              "simone"
-            ]
-          },
-          {
-            "name": "hybrid-odu",
-            "user-name": [
-              "hybrid-odu",
-              "haydon"
-            ]
-          },
-          {
-            "name": "carrier",
-            "user-name": [
-              "carrier",
-              "carron"
-            ]
-          }
+          {"name": "sudo", "user-name": ["sudo", "admin", "demx8as6", "netconf"]},
+          {"name": "nms", "user-name": ["nms", "nero"]},
+          {"name": "fm-pm", "user-name": ["fm-pm", "filippa"]},
+          {"name": "swm", "user-name": ["swm", "swami"]},
+          {"name": "smo", "user-name": ["smo", "simone"]},
+          {"name": "hybrid-odu", "user-name": ["hybrid-odu", "haydon"]},
+          {"name": "carrier", "user-name": ["carrier", "carron"]}
         ]
       },
       "rule-list": [
         {
-          "name": "smo-rule",
-          "group": [          
-            "smo"
-          ],
+          "name": "sudo-rules",
+          "group": ["sudo"],
           "rule": [
-            {
-              "name": "deny-ecpri",
-              "module-name": "o-ran-ecpri-delay",
-              "access-operations": "create update delete",
-              "action": "deny",
-              "comment": "Deny writing into ecpri."
-            },
-            {
-              "name": "allow-all",
-              "module-name": "*",
-              "access-operations": "*",
-              "action": "permit",
-              "comment": "Allow everything."
-            }
+            {"name": "allow-all", "module-name": "*", "access-operations": "*", "action": "permit"}
           ]
-        },        
+        },
         {
-          "name": "admin-rule",
-          "group": [
-            "sudo",
-            "nms",
-            "fm-pm",
-            "swm",
-            "hybrid-odu",
-            "carrier"
-          ],
+          "name": "nms-rules",
+          "group": ["nms"],
           "rule": [
-            {
-              "name": "allow-all",
-              "module-name": "*",
-              "access-operations": "*",
-              "action": "permit",
-              "comment": "All is allowed, no restictions!"
-            }
+            {"name": "deny-usermgmt", "module-name": "o-ran-usermgmt", "access-operations": "*", "action": "deny", "comment": "NMS cannot manage users (3.1.8.3)"},
+            {"name": "allow-all", "module-name": "*", "access-operations": "*", "action": "permit"}
+          ]
+        },
+        {
+          "name": "fm-pm-rules",
+          "group": ["fm-pm"],
+          "rule": [
+            {"name": "deny-processing-element", "module-name": "o-ran-processing-element", "access-operations": "*", "action": "deny", "comment": "FM-PM cannot configure processing elements (3.1.8.4)"},
+            {"name": "allow-read", "module-name": "*", "access-operations": "read", "action": "permit"},
+            {"name": "allow-exec", "module-name": "*", "access-operations": "exec", "action": "permit"}
+          ]
+        },
+        {
+          "name": "swm-rules",
+          "group": ["swm"],
+          "rule": [
+            {"name": "deny-fm-read", "module-name": "o-ran-fm", "access-operations": "read", "action": "deny", "comment": "SWM cannot read FM data (3.1.8.5)"},
+            {"name": "allow-swm", "module-name": "o-ran-software-management", "access-operations": "*", "action": "permit"},
+            {"name": "allow-read", "module-name": "*", "access-operations": "read", "action": "permit"},
+            {"name": "allow-exec", "module-name": "*", "access-operations": "exec", "action": "permit"}
+          ]
+        },
+        {
+          "name": "smo-rules",
+          "group": ["smo"],
+          "rule": [
+            {"name": "deny-ecpri", "module-name": "o-ran-ecpri-delay", "access-operations": "create update delete", "action": "deny"},
+            {"name": "deny-supervision-exec", "module-name": "o-ran-supervision", "access-operations": "exec", "action": "deny", "comment": "SMO cannot execute supervision RPCs (3.1.8.7)"},
+            {"name": "allow-all", "module-name": "*", "access-operations": "*", "action": "permit"}
+          ]
+        },
+        {
+          "name": "hybrid-odu-rules",
+          "group": ["hybrid-odu"],
+          "rule": [
+            {"name": "deny-file-mgmt-exec", "module-name": "o-ran-file-management", "access-operations": "exec", "action": "deny", "comment": "Hybrid-ODU cannot execute file management RPCs (3.1.8.8)"},
+            {"name": "allow-all", "module-name": "*", "access-operations": "*", "action": "permit"}
+          ]
+        },
+        {
+          "name": "carrier-rules",
+          "group": ["carrier"],
+          "rule": [
+            {"name": "deny-file-mgmt-exec", "module-name": "o-ran-file-management", "access-operations": "exec", "action": "deny", "comment": "Carrier cannot execute file management RPCs (3.1.8.9)"},
+            {"name": "allow-all", "module-name": "*", "access-operations": "*", "action": "permit"}
           ]
         }
       ]
     }
   }
-  
