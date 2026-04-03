@@ -1,0 +1,31 @@
+{
+  "o-ran-ald-port:ald-ports-io": {
+    "over-current-supported": false,
+    "ald-port": [
+      {
+        "name": "ALD-PORT-0",
+        "port-id": 0,
+        "dc-control-support": false,
+        "creation-timestamp": "2025-01-01T00:00:00Z",
+        "last-service-timestamp": "2025-01-01T00:00:00Z"
+      },
+      {
+        "name": "ALD-PORT-1",
+        "port-id": 1,
+        "dc-control-support": false,
+        "creation-timestamp": "2025-01-01T00:00:00Z",
+        "last-service-timestamp": "2025-01-01T00:00:00Z"
+      }
+    ],
+    "dc-enabled-status": [
+      {
+        "ald-port-dc-control": "ALD-PORT-0",
+        "dc-enabled": true
+      },
+      {
+        "ald-port-dc-control": "ALD-PORT-1",
+        "dc-enabled": true
+      }
+    ]
+  }
+}

@@ -97,9 +97,9 @@ class Core(Extension):
         # self.ves_heartbeat = VesHeartbeatFeature()
         # self.ves_heartbeat.start()
 
-        # # fault management
-        # self.fault_management.load_active_alarms()
-        # self.fault_management.start()
+        # fault management — load alarms but don't auto-start
+        # start is triggered on-demand via REST /fault-management/start
+        self.fault_management.load_active_alarms()
 
         # # performance management
         self.performance_management.start()

@@ -200,6 +200,9 @@ class FaultManagement:
             return {"code": 500, "message": "feature is already running"}
 
         try:
+            # If alarm_data is empty dict (from REST POST with {}), treat as None
+            if alarm_data is not None and not alarm_data.get("alarms"):
+                alarm_data = None
             self.load_alarms(alarm_data)
         except Exception as e:
             logger.error(e)
@@ -219,6 +222,7 @@ class FaultManagement:
         if self.stopped:
             return {"code": 500, "message": "feature is already stopped"}
         else:
+            self.stopped = True
             fault_stop_event.set()
             return {"code": 200, "message": "ok"}
 

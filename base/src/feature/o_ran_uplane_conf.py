@@ -176,28 +176,44 @@ class ORanUplaneConfFeature:
         Per spec 3.1.10.1: TX and RX endpoints may share the same eAxC IDs.
         Uniqueness is only required WITHIN each endpoint type (all TX unique,
         all RX unique). Duplicates within the same type are rejected.
+
+        Note: sysrepo emits multiple change entries per endpoint (container-level
+        and leaf-level), so we collect (endpoint_name, eaxc_id) pairs and
+        deduplicate before checking for conflicts.
         """
         try:
-            tx_ids = []
-            rx_ids = []
+            # Use sets of (endpoint_name, eaxc_id) to avoid counting the same
+            # endpoint's eAxC ID multiple times from container+leaf changes.
+            tx_pairs = set()
+            rx_pairs = set()
             current_type = None
+            current_endpoint = None
 
             for change in changes:
                 change_str = str(change)
-                # Track which endpoint type we're in
-                if "low-level-tx" in change_str:
+
+                # Track which endpoint type and name we're in
+                tx_match = re.search(r"low-level-tx-endpoints\[name='([^']+)'\]", change_str)
+                rx_match = re.search(r"low-level-rx-endpoints\[name='([^']+)'\]", change_str)
+                if tx_match:
                     current_type = "tx"
-                elif "low-level-rx" in change_str:
+                    current_endpoint = tx_match.group(1)
+                elif rx_match:
                     current_type = "rx"
+                    current_endpoint = rx_match.group(1)
 
                 # Extract eAxC ID
                 eid_match = re.search(r'eaxc-id["\'\s:=]+(\d+)', change_str)
-                if eid_match and current_type:
+                if eid_match and current_type and current_endpoint:
                     eid = int(eid_match.group(1))
                     if current_type == "tx":
-                        tx_ids.append(eid)
+                        tx_pairs.add((current_endpoint, eid))
                     else:
-                        rx_ids.append(eid)
+                        rx_pairs.add((current_endpoint, eid))
+
+            # Extract just the IDs for uniqueness check
+            tx_ids = [eid for _, eid in tx_pairs]
+            rx_ids = [eid for _, eid in rx_pairs]
 
             # Check duplicates within TX
             if len(tx_ids) != len(set(tx_ids)):
