@@ -5,12 +5,15 @@ import threading
 from datetime import datetime, timedelta, timezone
 from core.netconf import Netconf, Datastore
 from util.threading import stop_event, sa_sleep
+from fault_management.fault_management import FaultManagement
+from fault_management.alarm import Alarm, PerceivedSeverity
 
 logger = get_pynts_logger("feature-o-ran-supervision")
 
 class ORanSupervisionFeature:
     def __init__(self) -> None:
         self.netconf = Netconf()
+        self.fm = FaultManagement()
         self.supervision_active = False
         self.supervision_interval = 60  # Default 60 seconds
         self.guard_timer_overhead = 10  # Default 10 seconds
@@ -269,135 +272,50 @@ class ORanSupervisionFeature:
             return 1
 
     def _raise_supervision_timeout_alarm(self):
-        """Raise supervision-watchdog-timeout alarm via o-ran-fm."""
+        """Raise supervision-watchdog-timeout alarm via FaultManagement."""
         try:
-            # Build alarm notification according to o-ran-fm YANG schema
-            alarm_time = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
-
-            # Use fault-id 3 for supervision timeout (uint16 as per YANG schema)
-            # fault-id must be an integer, not a string
-            alarm_data = {
-                "fault-id": 3,
-                "fault-source": "o-ran-supervision",
-                "affected-objects": [
-                    {
-                        "name": "supervision-watchdog"
-                    }
-                ],
-                "fault-severity": "MAJOR",
-                "is-cleared": False,
-                "fault-text": "Supervision watchdog timeout - no watchdog reset received",
-                "event-time": alarm_time
-            }
-
             logger.info("Raising supervision-watchdog-timeout alarm (fault-id=3)")
 
-            # Add alarm to active-alarm-list in operational datastore
-            try:
-                # Get current alarms
-                current_alarms = []
-                try:
-                    alarm_list_data = self.netconf.operational.get_data("/o-ran-fm:active-alarm-list")
-                    if alarm_list_data:
-                        if "o-ran-fm:active-alarm-list" in alarm_list_data:
-                            current_alarms = alarm_list_data["o-ran-fm:active-alarm-list"].get("active-alarms", [])
-                        elif "active-alarm-list" in alarm_list_data:
-                            current_alarms = alarm_list_data["active-alarm-list"].get("active-alarms", [])
-                except Exception:
-                    pass
+            # Create alarm object through FaultManagement
+            alarm = Alarm("o-ran-supervision", "PROCESSING-ERROR-ALARM", "3")
+            alarm.is_cleared = False
+            alarm.perceived_severity = PerceivedSeverity.MAJOR
+            alarm.alarm_text = "Supervision watchdog timeout - no watchdog reset received"
+            alarm.last_changed = datetime.now(timezone.utc)
+            alarm.time_created = alarm.last_changed
+            alarm.last_raised = alarm.last_changed
 
-                # Remove any existing supervision alarms (fault-id 3) before adding new one
-                current_alarms = [alarm for alarm in current_alarms if str(alarm.get("fault-id")) != "3"]
-                
-                # Add new alarm
-                current_alarms.append(alarm_data)
-
-                # Update operational datastore
-                updated_data = {
-                    "active-alarm-list": {
-                        "active-alarms": current_alarms
-                    }
-                }
-                self.netconf.set_data(Datastore.OPERATIONAL, "o-ran-fm", updated_data)
-                logger.debug("Added supervision timeout alarm to active-alarm-list")
-            except Exception as e:
-                logger.error(f"Failed to add alarm to active-alarm-list: {e}")
+            # Add to FaultManagement and sync to operational DS
+            self.fm.add_alarm_and_sync(alarm)
 
             # Send alarm notification
-            self.netconf.running.notification_send(
-                "/o-ran-fm:alarm-notif",
-                alarm_data
-            )
+            self.fm.send_notification(alarm)
 
         except Exception as e:
             logger.error(f"Failed to raise supervision timeout alarm: {e}")
 
     def _clear_supervision_timeout_alarm(self):
-        """Clear supervision-watchdog-timeout alarm via o-ran-fm."""
-        import sysrepo
+        """Clear supervision-watchdog-timeout alarm via FaultManagement."""
         try:
-            alarm_time = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
             logger.info("Clearing supervision-watchdog-timeout alarm")
 
-            # Since active-alarms is a keyless list, we can't delete individual items
-            # Instead: delete entire list, then recreate with filtered items
-            try:
-                # First read current alarms
-                alarm_list_data = self.netconf.operational.get_data("/o-ran-fm:active-alarm-list")
-                active_alarms = []
-                if alarm_list_data:
-                    if "o-ran-fm:active-alarm-list" in alarm_list_data:
-                        active_alarms = alarm_list_data["o-ran-fm:active-alarm-list"].get("active-alarms", [])
-                    elif "active-alarm-list" in alarm_list_data:
-                        active_alarms = alarm_list_data["active-alarm-list"].get("active-alarms", [])
+            # Find the supervision alarm in FaultManagement
+            # c_id = resource + alarm_type_id + alarm_type_qualifier (no separator)
+            c_id = "o-ran-supervisionPROCESSING-ERROR-ALARM3"
+            existing = self.fm.get_alarm(c_id)
+            if existing:
+                # Mark as cleared and sync
+                existing.is_cleared = True
+                existing.last_changed = datetime.now(timezone.utc)
+                self.fm._sync_oran_fm_alarm_list()
 
-                logger.debug(f"Active alarms before filter: {len(active_alarms)} alarms")
+                # Send cleared notification
+                self.fm.send_notification(existing)
 
-                # Filter out supervision alarms (fault-id 3)
-                filtered_alarms = [alarm for alarm in active_alarms
-                                   if str(alarm.get("fault-id")) != "3"]
-
-                logger.debug(f"Active alarms after filter: {len(filtered_alarms)} alarms")
-
-                # Delete entire active-alarm-list then recreate with filtered items
-                with sysrepo.SysrepoConnection() as conn:
-                    with conn.start_session('operational') as sess:
-                        try:
-                            # Delete the container
-                            sess.delete_oper_item("/o-ran-fm:active-alarm-list")
-                            sess.apply_changes()
-                            logger.info("Deleted active-alarm-list container")
-                        except Exception as e:
-                            logger.debug(f"Could not delete container: {e}")
-
-                # Recreate with filtered alarms using merge
-                if filtered_alarms:
-                    updated_data = {
-                        "active-alarm-list": {
-                            "active-alarms": filtered_alarms
-                        }
-                    }
-                    self.netconf.set_data(Datastore.OPERATIONAL, "o-ran-fm", updated_data)
-                    logger.info("Recreated active-alarm-list without supervision alarm")
-                else:
-                    logger.info("No alarms remaining after filter")
-
-            except Exception as e:
-                logger.error(f"Could not delete alarm from list: {e}")
-
-            # Send alarm cleared notification
-            alarm_data = {
-                "fault-id": 3,
-                "fault-source": "o-ran-supervision",
-                "affected-objects": [{"name": "supervision-watchdog"}],
-                "fault-severity": "MAJOR",
-                "is-cleared": True,
-                "fault-text": "Supervision watchdog timeout cleared",
-                "event-time": alarm_time
-            }
-
-            self.netconf.running.notification_send("/o-ran-fm:alarm-notif", alarm_data)
-            logger.debug("Sent alarm cleared notification")
+                # Remove from active list
+                self.fm.remove_alarm_and_sync(c_id)
+            else:
+                logger.debug("No supervision alarm to clear")
 
         except Exception as e:
             logger.error(f"Failed to clear supervision timeout alarm: {e}")

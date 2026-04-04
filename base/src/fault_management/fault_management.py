@@ -144,25 +144,34 @@ class FaultManagement:
             self.netconf.operational.subscribe_oper_data_request("ietf-alarms", xpath, self._callback_oper_ietf_alarms_list)
 
         if self._o_ran_fm:
-            xpath = "/o-ran-fm:active-alarm-list"
+            # Load alarms directly from the JSON data file into memory.
+            # We do NOT read from the operational datastore (unreliable after
+            # restart due to stale sysrepo callback recovery) and we do NOT
+            # register subscribe_oper_data_request (conflicts with set_data
+            # writes from other modules like supervision).
+            # Instead, we load from the JSON file and push to operational DS
+            # via set_data — single source of truth.
+            json_path = '/data/o-ran-fm-operational.json'
+            try:
+                if Path(json_path).exists():
+                    with open(json_path, 'r') as f:
+                        fm_data = json.load(f)
+                    alarm_list = fm_data.get("o-ran-fm:active-alarm-list", {})
+                    if "active-alarms" in alarm_list and isinstance(alarm_list["active-alarms"], list):
+                        for alarm_data in alarm_list["active-alarms"]:
+                            try:
+                                Alarm.from_oran_fm(alarm_data)
+                                logger.info(f"Loaded alarm: fault-id={alarm_data.get('fault-id')}, source={alarm_data.get('fault-source')}")
+                            except Exception as e:
+                                logger.error(f"Failed to load alarm from JSON: {e}")
+                    logger.info(f"Loaded {len(self.alarms)} alarms from {json_path}")
+                else:
+                    logger.info(f"No alarm data file at {json_path}")
+            except Exception as e:
+                logger.warning(f"Could not load alarm data from {json_path}: {e}")
 
-            # get active alarm list if any
-            current_alarms_dict = self.netconf.get_data(Datastore.OPERATIONAL, xpath)
-            logger.info(f"Loaded O-RAN FM alarm data from operational datastore: {current_alarms_dict}")
-
-            # Load alarms from operational datastore into memory
-            if current_alarms_dict and "o-ran-fm:active-alarm-list" in current_alarms_dict:
-                alarm_list = current_alarms_dict["o-ran-fm:active-alarm-list"]
-                if "active-alarms" in alarm_list and isinstance(alarm_list["active-alarms"], list):
-                    for alarm_data in alarm_list["active-alarms"]:
-                        try:
-                            Alarm.from_oran_fm(alarm_data)
-                            logger.info(f"Loaded alarm: fault-id={alarm_data.get('fault-id')}, source={alarm_data.get('fault-source')}")
-                        except Exception as e:
-                            logger.error(f"Failed to load alarm: {e}")
-
-            # subscribe to active alarm list
-            self.netconf.operational.subscribe_oper_data_request("o-ran-fm", xpath, self._callback_oper_o_ran_fm_list)
+            # Sync in-memory alarms to operational datastore
+            self._sync_oran_fm_alarm_list()
 
     def load_alarms(self, alarm_data = None):
         if alarm_data is None:
@@ -240,12 +249,47 @@ class FaultManagement:
             }
         }
 
-    def _callback_oper_o_ran_fm_list(self, xpath: str, private_data: Any) -> Optional[dict]:
-        return {
-            "active-alarms": [
-                a.to_oran_fm() for a in self.get_alarms() if not a.is_cleared
-            ]
-        }
+    def _sync_oran_fm_alarm_list(self):
+        """Push current in-memory alarms to operational datastore via set_data.
+
+        Because active-alarms is a keyless list, merge would append duplicates.
+        We delete via the existing operational session, then write the full list.
+        """
+        try:
+            # Delete existing operational data using the shared session
+            try:
+                self.netconf.operational.delete_oper_item("/o-ran-fm:active-alarm-list")
+                self.netconf.operational.apply_changes()
+            except Exception:
+                pass  # OK if nothing to delete
+
+            # Write the full alarm list from memory
+            active = [a.to_oran_fm() for a in self.get_alarms() if not a.is_cleared]
+            if active:
+                data = {"active-alarm-list": {"active-alarms": active}}
+                self.netconf.set_data(Datastore.OPERATIONAL, "o-ran-fm", data)
+            logger.debug(f"Synced {len(active)} active alarms to operational datastore")
+        except Exception as e:
+            logger.warning(f"Could not sync alarm list to operational DS: {e}")
+
+    def add_alarm_and_sync(self, alarm: Alarm) -> None:
+        """Add or update an alarm in memory and sync to operational DS."""
+        existing = self.get_alarm(alarm.c_id)
+        if existing is None:
+            self.add_alarm(alarm)
+        else:
+            existing.is_cleared = alarm.is_cleared
+            existing.perceived_severity = alarm.perceived_severity
+            existing.alarm_text = alarm.alarm_text
+            existing.last_changed = alarm.last_changed
+        self.on_alarm_change(alarm)
+        self._sync_oran_fm_alarm_list()
+
+    def remove_alarm_and_sync(self, c_id) -> None:
+        """Remove an alarm from memory and sync to operational DS."""
+        if c_id in self.alarms:
+            del self.alarms[c_id]
+        self._sync_oran_fm_alarm_list()
 
     def send_notification(self, alarm: Alarm) -> None:
         xpath = ""

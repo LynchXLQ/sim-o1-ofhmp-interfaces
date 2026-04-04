@@ -87,19 +87,20 @@ class ORanUplaneConfFeature:
         """
         logger.info(f"Uplane-conf config change event: {event}")
 
+        # Materialize sysrepo's one-shot iterator so we can iterate multiple times
+        changes = list(changes)
+
         # Only validate eAxC uniqueness during CHANGE event, skip all other processing
-        event_str = str(event)
+        event_str = str(event).upper()
         if "CHANGE" in event_str and "DONE" not in event_str:
             try:
-                has_eaxc = False
-                for change in changes:
-                    change_str = str(change)
-                    if "eaxc-id" in change_str or "e-axcid" in change_str:
-                        has_eaxc = True
-                        break
+                has_eaxc = any(
+                    "eaxc-id" in str(c) or "e-axcid" in str(c) for c in changes
+                )
                 if has_eaxc:
                     self._validate_eaxc_uniqueness(changes)
-            except ValueError:
+            except ValueError as ve:
+                logger.info(f"eAxC validation rejected edit-config: {ve}")
                 raise  # Re-raise to reject duplicate eAxC IDs
             except Exception:
                 pass  # Don't block edit-config for non-validation errors
@@ -131,19 +132,9 @@ class ORanUplaneConfFeature:
                 if "energy-sharing-groups-disabled" in change_str:
                     self._handle_energy_sharing_group_change(change, change_str)
 
-            # After processing changes, check for eAxC uniqueness
-            for change in changes:
-                change_str = str(change)
-                if "eaxc-id" in change_str or "e-axcid" in change_str:
-                    self._validate_eaxc_uniqueness(changes)
-                    break
-
-            # Send config-change notification after validation passes
+            # Send config-change notification
             self._send_config_change_notification()
 
-        except ValueError:
-            # eAxC uniqueness violation — reject the edit-config
-            raise
         except Exception as e:
             # Other errors should not block the edit-config
             logger.error(f"Error in config change handler (non-blocking): {e}")
@@ -202,8 +193,12 @@ class ORanUplaneConfFeature:
                     current_type = "rx"
                     current_endpoint = rx_match.group(1)
 
-                # Extract eAxC ID
-                eid_match = re.search(r'eaxc-id["\'\s:=]+(\d+)', change_str)
+                # Extract eAxC ID — prefer NEW value after '->' for MODIFY changes
+                arrow_match = re.search(r'eaxc-id.*->\s*(\d+)', change_str)
+                if arrow_match:
+                    eid_match = arrow_match
+                else:
+                    eid_match = re.search(r'eaxc-id["\'\s:=]+(\d+)', change_str)
                 if eid_match and current_type and current_endpoint:
                     eid = int(eid_match.group(1))
                     if current_type == "tx":
