@@ -18,6 +18,13 @@
       },
       "rule-list": [
         {
+          "name": "nacm-default-deny-all-enforcement",
+          "group": ["sudo", "nms", "fm-pm", "swm", "smo", "hybrid-odu", "carrier"],
+          "rule": [
+            {"name": "deny-password-read", "module-name": "o-ran-usermgmt", "path": "/o-ran-usermgmt:users/user/password", "access-operations": "read", "action": "deny", "comment": "Enforce nacm:default-deny-all on password leaf — must not appear in GET responses (WG4 3.1.8.x)"}
+          ]
+        },
+        {
           "name": "sudo-rules",
           "group": ["sudo"],
           "rule": [
