@@ -453,7 +453,7 @@ class ORanUplaneConfFeature:
 
             notification_data = {
                 "array-name": array_name,
-                "array-type": f"{array_type}-array",
+                "array-type": f"{array_type.upper()}-ARRAY",
                 "event-time": event_time
             }
             if bitmask:

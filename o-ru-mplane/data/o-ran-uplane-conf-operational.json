@@ -1,0 +1,24 @@
+{
+  "o-ran-uplane-conf:user-plane-configuration": {
+    "tx-arrays": [
+      {
+        "name": "tx-array-1",
+        "number-of-rows": 4,
+        "number-of-columns": 4,
+        "number-of-array-layers": 1,
+        "max-gain": "25.0",
+        "independent-power-budget": false,
+        "band-number": 78
+      }
+    ],
+    "rx-arrays": [
+      {
+        "name": "rx-array-1",
+        "number-of-rows": 4,
+        "number-of-columns": 4,
+        "number-of-array-layers": 1,
+        "band-number": 78
+      }
+    ]
+  }
+}
