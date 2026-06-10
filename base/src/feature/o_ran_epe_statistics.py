@@ -52,16 +52,47 @@ class ORanEpeStatisticsFeature:
         """Start the EPE statistics feature by subscribing to config changes."""
         logger.info("Starting O-RAN EPE statistics feature")
         try:
-            # Subscribe to performance-management module changes
             self.netconf.running.subscribe_module_change(
                 "o-ran-performance-management",
-                None,  # xpath filter (None = all changes)
-                self._handle_config_change
+                None,
+                self._handle_config_change,
             )
             logger.info("Successfully subscribed to o-ran-performance-management module changes")
-
+            self._initialise_from_running_datastore()
         except Exception as e:
             logger.error(f"Failed to start EPE statistics feature: {e}")
+
+    def _initialise_from_running_datastore(self):
+        """
+        Seed measurement-interval and active state from the current running datastore.
+
+        Without this, a pynts restart loses track of an already-configured interval:
+        sysrepo only fires a change event when the value differs from the previous
+        one, so a subsequent edit-config with the same interval would be a silent
+        no-op and the notification loop would keep running at the hard-coded default.
+        """
+        try:
+            raw = self.netconf.running.get_data(
+                "/o-ran-performance-management:performance-measurement-objects/epe-measurement-interval"
+            )
+            # get_data returns the subtree: {'performance-measurement-objects':
+            #   {'epe-measurement-interval': 5}}
+            interval_val = None
+            if isinstance(raw, dict):
+                pmo = raw.get("performance-measurement-objects") or {}
+                interval_val = pmo.get("epe-measurement-interval")
+            elif raw is not None:
+                interval_val = raw
+            if interval_val is not None:
+                with self.lock:
+                    self.measurement_interval = int(interval_val)
+                    self.notification_interval = self.measurement_interval
+                logger.info(
+                    f"Initialised measurement-interval from running datastore: "
+                    f"{self.measurement_interval}s"
+                )
+        except Exception as e:
+            logger.debug(f"Running datastore lookup for measurement-interval failed: {e}")
 
     def _handle_config_change(self, event, request_id, changes, private_data):
         """
@@ -113,38 +144,65 @@ class ORanEpeStatisticsFeature:
             logger.error(f"Error handling EPE config change: {e}")
 
     def _handle_interval_change(self, change, change_str: str):
-        """Handle measurement interval changes."""
+        """
+        Handle measurement-interval leaf changes.
+
+        Reads only the value after '->' so an 'OLD -> NEW' transition is parsed
+        as NEW; previously the regex captured the OLD value.
+        """
         try:
+            if "epe-measurement-interval" not in change_str:
+                return
+            if "->" not in change_str:
+                return
             import re
-
-            # Try to extract interval value
-            match = re.search(r"measurement-interval['\"]?\s*[:=]?\s*(\d+)", change_str)
-            if match:
-                interval = int(match.group(1))
-                with self.lock:
-                    self.measurement_interval = interval
-                    self.notification_interval = interval
-                logger.info(f"EPE measurement interval set to {interval} seconds")
-
+            new_val_raw = change_str.rsplit("->", 1)[1].strip()
+            match = re.search(r"(\d+)", new_val_raw)
+            if not match:
+                return
+            interval = int(match.group(1))
+            if interval <= 0:
+                return
+            with self.lock:
+                self.measurement_interval = interval
+                self.notification_interval = interval
+            logger.info(f"EPE measurement interval set to {interval} seconds")
         except Exception as e:
             logger.error(f"Error handling interval change: {e}")
 
     def _handle_active_change(self, change, change_str: str):
-        """Handle activation/deactivation of EPE measurement."""
+        """
+        Handle activation/deactivation of EPE measurement.
+
+        The sysrepo change string takes the form ``<xpath>: 'OLD' -> NEW`` where
+        NEW is a Python literal (``True``/``False``/``None``). We parse only the
+        post-``->`` side so that a transition like ``'false' -> True`` is not
+        mis-classified as a deactivate just because "false" appears on the left.
+        """
         try:
-            # Determine if activating or deactivating
-            is_activate = "true" in change_str.lower() or "->True" in change_str
-            is_deactivate = "false" in change_str.lower() or "->False" in change_str or "delete" in change_str.lower()
+            # Only inspect changes on the 'active' leaf itself; skip the parent list
+            # change events whose change_str mentions 'active' as part of a longer path.
+            if "/active" not in change_str and not change_str.rstrip().endswith("/active"):
+                # Fallback: still allow a pure "active" leaf change
+                if "active:" not in change_str:
+                    return
 
-            # Also check for None transitions
-            if "->None" in change_str:
-                is_deactivate = True
-                is_activate = False
+            # Extract the part after the last '->' and normalise
+            if "->" not in change_str:
+                return
+            new_val_raw = change_str.rsplit("->", 1)[1].strip()
+            # Strip surrounding quotes if present
+            new_val = new_val_raw.strip("'\"")
+            new_lower = new_val.lower()
 
-            if is_activate and not is_deactivate:
+            if new_lower in ("true", "1"):
+                logger.info("EPE active leaf transitioned to True → activating")
                 self._activate_epe_measurement()
-            elif is_deactivate:
+            elif new_lower in ("false", "0", "none", "null"):
+                logger.info(f"EPE active leaf transitioned to {new_val} → deactivating")
                 self._deactivate_epe_measurement()
+            else:
+                logger.debug(f"Ignoring unrecognised active-leaf transition: {new_val!r}")
 
         except Exception as e:
             logger.error(f"Error handling active change: {e}")
@@ -209,40 +267,56 @@ class ORanEpeStatisticsFeature:
         logger.info("EPE notification loop stopped")
 
     def _send_epe_notification(self):
-        """Send EPE measurement result notification."""
-        try:
-            event_time = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
+        """
+        Send a ``measurement-result-stats`` notification per o-ran-performance-management
+        YANG (notification ``measurement-result-stats`` uses the ``measurement-notification``
+        grouping which carries ``epe-statistics[measurement-object]``).
 
-            # Generate simulated power measurement
-            power_value = self._generate_power_measurement()
+        The numeric power values are synthetic; what matters is that the notification
+        structure + periodicity match the WG4 spec 3.1.14.3 expectations.
+        """
+        try:
+            now_ts = self._iso_zulu(datetime.now(timezone.utc))
+            start_ts = self._iso_zulu(
+                datetime.now(timezone.utc).replace(microsecond=0)
+            )
+            avg_power = self._generate_power_measurement()
+            min_power = round(avg_power - self.power_variation, 4)
+            max_power = round(avg_power + self.power_variation, 4)
 
             notification_data = {
-                "measurement-result-statistics": {
-                    "epe-statistics": {
+                "epe-statistics": [
+                    {
                         "measurement-object": self.measurement_object,
-                        "report-info": self.report_info,
-                        "object-unit": self.object_unit,
-                        "measurement-result": {
-                            "value": str(power_value),
-                            "unit": "watts"
-                        },
-                        "event-time": event_time
+                        "start-time": start_ts,
+                        "end-time": now_ts,
+                        "epe-measurement-resultv2": [
+                            {
+                                "object-unit-id": self.object_unit,
+                                "min": f"{min_power:.4f}",
+                                "max": f"{max_power:.4f}",
+                                "average": f"{avg_power:.4f}",
+                            }
+                        ],
                     }
-                }
+                ]
             }
 
-            logger.info(f"Sending EPE notification: POWER={power_value}W")
-
-            try:
-                self.netconf.running.notification_send(
-                    "/o-ran-performance-management:measurement-result-statistics",
-                    notification_data
-                )
-            except Exception as e:
-                logger.debug(f"Could not send notification: {e}")
-
+            logger.info(
+                f"Sending EPE notification: POWER avg={avg_power}W "
+                f"(min={min_power}/max={max_power})"
+            )
+            self.netconf.running.notification_send(
+                "/o-ran-performance-management:measurement-result-stats",
+                notification_data,
+            )
         except Exception as e:
             logger.error(f"Failed to send EPE notification: {e}")
+
+    @staticmethod
+    def _iso_zulu(dt) -> str:
+        """Render a UTC datetime as YANG yang-types:date-and-time (milliseconds, Z suffix)."""
+        return dt.strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
 
     def _generate_power_measurement(self) -> float:
         """

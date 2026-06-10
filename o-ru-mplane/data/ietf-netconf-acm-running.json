@@ -1,10 +1,10 @@
 {
     "ietf-netconf-acm:nacm": {
       "enable-nacm": true,
-      "read-default": "permit",
+      "read-default": "deny",
       "write-default": "deny",
       "exec-default": "deny",
-      "enable-external-groups": false,
+      "enable-external-groups": true,
       "groups": {
         "group": [
           {"name": "sudo", "user-name": ["sudo", "admin", "demx8as6", "netconf"]},
@@ -35,6 +35,7 @@
           "name": "nms-rules",
           "group": ["nms"],
           "rule": [
+            {"name": "deny-nacm-config", "module-name": "ietf-netconf-acm", "access-operations": "*", "action": "deny", "comment": "Non-sudo groups cannot mutate NACM config (STS 11.1.3.6 negative case 3a)"},
             {"name": "deny-usermgmt", "module-name": "o-ran-usermgmt", "access-operations": "*", "action": "deny", "comment": "NMS cannot manage users (3.1.8.3)"},
             {"name": "allow-all", "module-name": "*", "access-operations": "*", "action": "permit"}
           ]
@@ -43,6 +44,7 @@
           "name": "fm-pm-rules",
           "group": ["fm-pm"],
           "rule": [
+            {"name": "deny-nacm-config", "module-name": "ietf-netconf-acm", "access-operations": "*", "action": "deny", "comment": "Non-sudo groups cannot mutate NACM config (STS 11.1.3.6 negative case 3a)"},
             {"name": "deny-processing-element", "module-name": "o-ran-processing-element", "access-operations": "*", "action": "deny", "comment": "FM-PM cannot configure processing elements (3.1.8.4)"},
             {"name": "allow-read", "module-name": "*", "access-operations": "read", "action": "permit"},
             {"name": "allow-exec", "module-name": "*", "access-operations": "exec", "action": "permit"}
@@ -52,6 +54,7 @@
           "name": "swm-rules",
           "group": ["swm"],
           "rule": [
+            {"name": "deny-nacm-config", "module-name": "ietf-netconf-acm", "access-operations": "*", "action": "deny", "comment": "Non-sudo groups cannot mutate NACM config (STS 11.1.3.6 negative case 3a)"},
             {"name": "deny-fm-read", "module-name": "o-ran-fm", "access-operations": "read", "action": "deny", "comment": "SWM cannot read FM data (3.1.8.5)"},
             {"name": "allow-swm", "module-name": "o-ran-software-management", "access-operations": "*", "action": "permit"},
             {"name": "allow-read", "module-name": "*", "access-operations": "read", "action": "permit"},
@@ -62,6 +65,7 @@
           "name": "smo-rules",
           "group": ["smo"],
           "rule": [
+            {"name": "deny-nacm-config", "module-name": "ietf-netconf-acm", "access-operations": "*", "action": "deny", "comment": "Non-sudo groups cannot mutate NACM config (STS 11.1.3.6 negative case 3a)"},
             {"name": "deny-ecpri", "module-name": "o-ran-ecpri-delay", "access-operations": "create update delete", "action": "deny"},
             {"name": "deny-supervision-exec", "module-name": "o-ran-supervision", "access-operations": "exec", "action": "deny", "comment": "SMO cannot execute supervision RPCs (3.1.8.7)"},
             {"name": "allow-all", "module-name": "*", "access-operations": "*", "action": "permit"}
@@ -71,6 +75,7 @@
           "name": "hybrid-odu-rules",
           "group": ["hybrid-odu"],
           "rule": [
+            {"name": "deny-nacm-config", "module-name": "ietf-netconf-acm", "access-operations": "*", "action": "deny", "comment": "Non-sudo groups cannot mutate NACM config (STS 11.1.3.6 negative case 3a)"},
             {"name": "deny-file-mgmt-exec", "module-name": "o-ran-file-management", "access-operations": "exec", "action": "deny", "comment": "Hybrid-ODU cannot execute file management RPCs (3.1.8.8)"},
             {"name": "allow-all", "module-name": "*", "access-operations": "*", "action": "permit"}
           ]
@@ -79,6 +84,7 @@
           "name": "carrier-rules",
           "group": ["carrier"],
           "rule": [
+            {"name": "deny-nacm-config", "module-name": "ietf-netconf-acm", "access-operations": "*", "action": "deny", "comment": "Non-sudo groups cannot mutate NACM config (STS 11.1.3.6 negative case 3a)"},
             {"name": "deny-file-mgmt-exec", "module-name": "o-ran-file-management", "access-operations": "exec", "action": "deny", "comment": "Carrier cannot execute file management RPCs (3.1.8.9)"},
             {"name": "allow-all", "module-name": "*", "access-operations": "*", "action": "permit"}
           ]
