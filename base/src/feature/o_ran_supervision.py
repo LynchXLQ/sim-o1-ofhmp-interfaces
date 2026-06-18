@@ -18,6 +18,10 @@ class ORanSupervisionFeature:
         self.supervision_interval = 60  # Default 60 seconds
         self.guard_timer_overhead = 10  # Default 10 seconds
         self.last_watchdog_reset = None
+        # NETCONF session-id of the client driving supervision (originator of the last
+        # watchdog-reset RPC, captured via extra_info). Emitted in each supervision-
+        # notification so its session-id leafref resolves to a live netconf-state session.
+        self.supervision_session_id = None
         self.lock = threading.Lock()
         self.notification_thread = None
         self.timeout_monitor_thread = None
@@ -29,10 +33,13 @@ class ORanSupervisionFeature:
             # Initialize operational state
             self._initialize_operational_state()
 
-            # Subscribe to supervision-watchdog-reset RPC
+            # Subscribe to supervision-watchdog-reset RPC. extra_info=True makes sysrepo
+            # pass the originator's netconf_id (the client's NETCONF session-id) to the
+            # callback, which we emit as the supervision-notification session-id.
             self.netconf.running.subscribe_rpc_call(
                 "/o-ran-supervision:supervision-watchdog-reset",
-                self._handle_watchdog_reset_rpc
+                self._handle_watchdog_reset_rpc,
+                extra_info=True
             )
             logger.info("Successfully subscribed to supervision-watchdog-reset RPC")
 
@@ -64,9 +71,19 @@ class ORanSupervisionFeature:
         except Exception as e:
             logger.error(f"Failed to initialize operational state: {e}")
 
-    def _handle_watchdog_reset_rpc(self, rpc_path, input_params, event, private_data):
-        """Handle incoming supervision-watchdog-reset RPC calls."""
-        logger.info(f"Received supervision-watchdog-reset RPC")
+    def _handle_watchdog_reset_rpc(self, rpc_path, input_params, event, private_data,
+                                   **extra_info):
+        """Handle incoming supervision-watchdog-reset RPC calls.
+
+        With extra_info=True the subscription delivers the originator's netconf_id (the
+        NETCONF session-id of the client that issued the reset) and user as KEYWORD args.
+        They MUST be captured via **extra_info: sysrepo validates the callback's positional
+        signature as exactly (xpath, input, event, private_data), so declaring explicit
+        params is rejected. We remember netconf_id so each supervision-notification carries
+        the session-id of the live session driving supervision.
+        """
+        netconf_id = extra_info.get("netconf_id")
+        logger.info(f"Received supervision-watchdog-reset RPC (netconf_id={netconf_id})")
         logger.debug(f"Input params: {input_params}")
 
         try:
@@ -107,6 +124,10 @@ class ORanSupervisionFeature:
                 self.guard_timer_overhead = guard_timer_overhead
                 self.supervision_active = True
                 self.last_watchdog_reset = datetime.now(timezone.utc)
+                # netconf_id is -1 for non-netopeer2 (internal) originators; only record a
+                # real client session-id (this RPC only ever arrives via NETCONF anyway).
+                if netconf_id is not None and netconf_id > 0:
+                    self.supervision_session_id = netconf_id
 
                 # Calculate next-update-at (current time + interval)
                 next_update = self.last_watchdog_reset + timedelta(seconds=supervision_interval)
@@ -179,9 +200,14 @@ class ORanSupervisionFeature:
                     logger.debug("Supervision deactivated, skipping notification")
                     continue
 
-            # Get NETCONF session-id
+            # Session-id of the client driving supervision (originator of the last
+            # watchdog-reset, captured via extra_info). Fall back to the monitoring lookup
+            # only if no reset has been seen yet.
             try:
-                session_id = self._get_netconf_session_id()
+                with self.lock:
+                    session_id = self.supervision_session_id
+                if session_id is None:
+                    session_id = self._get_netconf_session_id()
 
                 # Build notification data according to YANG schema
                 notification_data = {

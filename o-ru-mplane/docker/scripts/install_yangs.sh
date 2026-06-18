@@ -31,7 +31,7 @@ source "${script_directory}/common.sh"
 
 # array of modules to install
 MODULES=(
-"o-ran-wg4-features.yang -e DEEP-HIBERNATE -e TRX-CONTROL -e MPLANE-TRX-CONTROL -e MPLANE-DATA-LAYER-CONTROL -e SHARED-ORU-MULTI-OPERATOR -e SHARED-ORU-MULTI-ODU"
+"o-ran-wg4-features.yang -e DEEP-HIBERNATE -e TRX-CONTROL -e MPLANE-TRX-CONTROL -e MPLANE-DATA-LAYER-CONTROL -e SHARED-ORU-MULTI-OPERATOR -e SHARED-ORU-MULTI-ODU -e SUPERVISION-WITH-SESSION-ID"
 "o-ran-ald.yang"
 "o-ran-ald-port.yang"
 "o-ran-antenna-calibration.yang"
