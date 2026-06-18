@@ -190,9 +190,20 @@ class ORanSupervisionFeature:
 
                 interval = self.supervision_interval
 
-            # Wait for the supervision interval
-            logger.debug(f"Waiting {interval} seconds before sending supervision notification")
-            sa_sleep(interval)
+            # Wait up to `interval` seconds, but re-read the interval every second so a new
+            # watchdog-reset that SHORTENS it (e.g. 60s -> 10s when 3.1.3.2 follows 3.1.3.1)
+            # takes effect within ~1s instead of sleeping out the stale long interval (which
+            # made the next notification arrive ~50s late and the test time out). Also wake
+            # immediately if supervision is deactivated.
+            logger.debug(f"Waiting up to {interval}s before sending supervision notification")
+            elapsed = 0
+            while elapsed < interval and not stop_event.is_set():
+                sa_sleep(1)
+                elapsed += 1
+                with self.lock:
+                    if not self.supervision_active:
+                        break
+                    interval = self.supervision_interval
 
             # Check if still active
             with self.lock:
