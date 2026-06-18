@@ -2,6 +2,7 @@
 
 import os
 import socket
+import tarfile
 import threading
 import time
 import zipfile
@@ -286,8 +287,8 @@ class ORanSoftwareManagementFeature:
         Validate the previously downloaded package.
 
         Returns 'COMPLETED' on success, 'FILE_ERROR' if the archive cannot be read,
-        'INTEGRITY_ERROR' if manifest.xml is missing or empty, 'APPLICATION_ERROR'
-        for unexpected failures.
+        'INTEGRITY_ERROR' if manifest.xml is missing/empty or the firmware payload is
+        corrupt, 'APPLICATION_ERROR' for unexpected failures.
         """
         if not local_file or not os.path.exists(local_file):
             logger.error(f"No cached package to install: {local_file!r}")
@@ -302,7 +303,25 @@ class ORanSoftwareManagementFeature:
                 if not manifest_bytes.strip():
                     logger.error(f"Package has empty manifest.xml: {local_file}")
                     return "INTEGRITY_ERROR"
-            logger.info(f"Package validated: {local_file}")
+                # Validate the actual firmware payload, not just the manifest: a real O-RU
+                # unpacks and integrity-checks the inner archive before reporting COMPLETED.
+                # The package carries the firmware as a *.tar.bz2 member; if it is missing or
+                # not a readable bz2 tarball (corrupt payload), install must fail.
+                tar_members = [n for n in names if n.endswith(".tar.bz2")]
+                if not tar_members:
+                    logger.error(f"Package has no .tar.bz2 firmware payload: {local_file}")
+                    return "INTEGRITY_ERROR"
+                for tar_name in tar_members:
+                    try:
+                        with zf.open(tar_name) as payload:
+                            with tarfile.open(fileobj=payload, mode="r:bz2") as tf:
+                                tf.getmembers()  # forces decompression of the bz2 stream
+                    except (tarfile.TarError, OSError, EOFError) as pe:
+                        logger.error(
+                            f"Package payload {tar_name} is not a valid bz2 tar "
+                            f"(corrupt firmware): {pe}")
+                        return "INTEGRITY_ERROR"
+            logger.info(f"Package validated (manifest + payload): {local_file}")
             return "COMPLETED"
         except zipfile.BadZipFile:
             logger.error(f"Package is not a valid zip: {local_file}")
