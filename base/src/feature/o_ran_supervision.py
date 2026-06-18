@@ -82,20 +82,17 @@ class ORanSupervisionFeature:
                 if "guard-timer-overhead" in input_params:
                     guard_timer_overhead = int(input_params["guard-timer-overhead"])
 
-            # If parameters not provided in RPC, read from running configuration
+            # If parameters not provided in RPC, fall back to the last-known CACHED values.
+            # NEVER read the datastore (get_data) here: a datastore read inside the sysrepo
+            # RPC callback can block the reply long enough to trip the client's supervision
+            # watchdog, making a healthy reset appear to "time out". The cached values are
+            # kept current by every reset and seeded from the YANG defaults at startup.
             if supervision_interval is None or guard_timer_overhead is None:
-                try:
-                    config_data = self.netconf.running.get_data("/o-ran-supervision:supervision/cu-plane-monitoring")
-                    if config_data:
-                        cu_monitoring = config_data.get("o-ran-supervision:supervision", {}).get("cu-plane-monitoring", {})
-                        if supervision_interval is None:
-                            configured_interval = cu_monitoring.get("configured-cu-monitoring-interval")
-                            if configured_interval is not None:
-                                supervision_interval = int(configured_interval)
-                                logger.debug(f"Using configured supervision interval: {supervision_interval}s")
-                        # Note: guard-timer-overhead is not configurable, only comes from RPC
-                except Exception as e:
-                    logger.debug(f"Could not read configured values: {e}")
+                with self.lock:
+                    if supervision_interval is None:
+                        supervision_interval = self.supervision_interval
+                    if guard_timer_overhead is None:
+                        guard_timer_overhead = self.guard_timer_overhead
 
             # Apply defaults if still not set
             if supervision_interval is None:
