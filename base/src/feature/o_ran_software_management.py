@@ -92,9 +92,17 @@ class ORanSoftwareManagementFeature:
                 for slot in ("SLOT0", "SLOT1"):
                     active_xpath = f"/o-ran-software-management:software-inventory/software-slot[name='{slot}']/active"
                     running_xpath = f"/o-ran-software-management:software-inventory/software-slot[name='{slot}']/running"
+                    access_xpath = f"/o-ran-software-management:software-inventory/software-slot[name='{slot}']/access"
                     value = "true" if slot == activated_slot else "false"
                     self.netconf.set_data(Datastore.OPERATIONAL, active_xpath, value)
                     self.netconf.set_data(Datastore.OPERATIONAL, running_xpath, value)
+                    # access follows running: the running slot is READ_ONLY (the executing
+                    # image cannot be modified), the other slot is READ_WRITE (installable).
+                    # Without this the deactivated slot stayed READ_ONLY after a reset, so a
+                    # re-run found no installable slot (active=false/running=false/READ_WRITE)
+                    # and 3.1.6.x failed -- i.e. the suite was not idempotent on the sim.
+                    access_value = "READ_ONLY" if slot == activated_slot else "READ_WRITE"
+                    self.netconf.set_data(Datastore.OPERATIONAL, access_xpath, access_value)
                 os.remove(state_file)
                 logger.info("Cleaned up activation state file")
         except FileNotFoundError:
